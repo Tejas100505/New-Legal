@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_003@legal-eval.local>
+From: nathan.kline@inhouse-vanguard.com
+To: rachel.morales@inhouse-vanguard.com, kevin.choi@inhouse-vanguard.com
+Subject: LEGAL ADVICE: Indemnification Clause Risk in Project Sierra EPC Contract
+Category: legal_advice_contract_indemnity
+Source: synthetic
+
+Rachel and Kevin,
+
+I have conducted a legal review of the indemnification and consequential damages limitation in Section 14.2 of the Siemens EPC draft. As currently drafted by opposing counsel, the carve-out for 'gross negligence' fails to protect Vanguard from third-party environmental claims arising under CERCLA joint-and-several liability standards. Under Texas law, indemnity provisions must meet the express negligence doctrine to enforce indemnification for our own negligence. To mitigate this exposure, you must replace their paragraph with our revised clause below, which specifically disclaims consequential damages while preserving strict environmental hold-harmless coverage.
+
+Nathan Kline
+Assistant General Counsel - Commercial Projects
+Vanguard Power Infrastructure

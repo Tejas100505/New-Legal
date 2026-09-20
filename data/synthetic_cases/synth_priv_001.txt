@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_001@legal-eval.local>
+From: elena.vance@apollocounsel.com
+To: marcus.trent@meridianenergy.com, sarah.lin@meridianenergy.com
+Subject: Privileged & Confidential: Legal Assessment of CFTC Rule 43 Swaps Reporting
+Category: legal_advice_regulatory_compliance
+Source: synthetic
+
+Marcus and Sarah,
+
+Pursuant to your request yesterday regarding our cross-border power swap execution facilities, I have reviewed the CFTC Part 43 real-time public reporting obligations against our proposed routing architecture. In my legal opinion, routing these physical-settlement derivatives through the London desk without real-time reporting exposes Meridian to significant non-compliance sanctions under Section 2(a)(13) of the Commodity Exchange Act. I strongly advise structuring the transaction confirmations with the standardized fallback language attached in Exhibit B, which legally preserves the bona fide hedging exclusion. Let us schedule a confidential call tomorrow at 10 AM to discuss implementation.
+
+Elena Vance
+Senior Regulatory Counsel
+Apollo Legal Advisors LLP

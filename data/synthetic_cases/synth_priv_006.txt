@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_006@legal-eval.local>
+From: arthur.pendleton@pendletonip.com
+To: cto@novabiotech.com, dev-leads@novabiotech.com
+Subject: ATTORNEY-CLIENT PRIVILEGED: Freedom-to-Operate Analysis for Compound NB-409
+Category: legal_advice_ip_patent_infringement
+Source: synthetic
+
+Dr. Aris and Engineering Team,
+
+We have completed the freedom-to-operate patent clearance opinion regarding Nova's synthetic ester purification technique. Having analyzed Claims 1 through 18 of US Patent 8,492,101 held by Genex Corp, our legal conclusion is that Nova's two-stage countercurrent extraction does not literally infringe due to the absence of an alkaline wash step in your operating parameters. However, to eliminate any doctrine-of-equivalents vulnerability, we strongly recommend maintaining the solvent pH strictly above 7.4. Detailed claim construction charts are attached.
+
+Arthur Pendleton
+Registered Patent Attorney
+Pendleton Intellectual Property Law Group

@@ -1,0 +1,8 @@
+Message-ID: <synth_priv_0013@legal-eval.local>
+From: greg.simpson@meridianenergy.com
+To: marcus.trent@meridianenergy.com, terry.wong@meridianenergy.com
+Subject: August Gas Basis Pricing and Pipeline Nominations (CC: Elena Vance)
+Category: lawyer_ccd_purely_business_discussion
+Source: synthetic
+
+("Marcus and Terry,\n\nHere is the finalized commercial schedule for our August basis nominations at the Opal hub. The spread narrowed by four cents this morning, so I recommend locking in 25,000 MMBtu/day with El Paso before noon. Terry, please coordinate with dispatch to confirm gate pressure allocations. I'm copying Elena Vance from legal so she has visibility on our volume numbers for the monthly counterparty summary, but no legal questions here—this is just our standard commercial nomination sheet.\n\nThanks,\nGreg Simpson\nSenior Gas Trader\nMeridian Energy Trading",)

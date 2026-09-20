@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_0012@legal-eval.local>
+From: timothy.bell@inhouse-vanguard.com
+To: cfo@inhouse-vanguard.com, treasury@inhouse-vanguard.com
+Subject: LEGAL MEMORANDUM: Tax Opinion on Section 45 Production Tax Credit Eligibility
+Category: internal_legal_memorandum_tax
+Source: synthetic
+
+Mark and Treasury Colleagues,
+
+Attached is my formal legal memorandum analyzing whether the repowering work completed at the Red Rock wind facility satisfies the 80/20 Rule under IRS Revenue Ruling 94-31 for renewed Section 45 tax credit qualification. Based on the documented capital expenditures and our legal interpretation of Treasury Regulation 1.48-12, the project meets the legal threshold of new property placed in service, provided we secure contemporaneous appraisal affidavits. Please treat this memorandum as privileged attorney-client work product prepared in anticipation of IRS examination.
+
+Timothy Bell
+Chief Tax Counsel
+Vanguard Power Infrastructure

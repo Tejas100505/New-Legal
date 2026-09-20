@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_009@legal-eval.local>
+From: miriam.goldstein@goldsteinpartners.com
+To: exec-team@apexpipeline.com
+Subject: ATTORNEY-CLIENT PRIVILEGED: Antitrust Review of Proposed Capacity Sharing Agreement
+Category: antitrust_compliance_legal_advice
+Source: synthetic
+
+Executive Team,
+
+We have evaluated the legal implications under Section 1 of the Sherman Act regarding the proposed joint capacity coordination pact with Northern Gas. Because the agreement contemplates mutual notifications of uncommitted throughput prior to open-season postings, this creates an acute risk of per se illegal horizontal market allocation. I advise against executing the memorandum of understanding in its current form. If the commercial objective is operational reliability, we must restructure the arrangement through a blind third-party clearinghouse mechanism.
+
+Miriam Goldstein
+Antitrust Practice Group Leader
+Goldstein & Partners LLP

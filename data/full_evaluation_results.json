@@ -1,0 +1,423 @@
+{
+  "timestamp": "2026-09-06 14:17:50",
+  "relevance": {
+    "threshold": 0.48,
+    "by_split": {
+      "train": {
+        "tp": 9,
+        "fp": 1,
+        "tn": 264,
+        "fn": 6,
+        "total": 280,
+        "precision": 0.9,
+        "recall": 0.6,
+        "f1": 0.72,
+        "accuracy": 0.975
+      },
+      "val": {
+        "tp": 1,
+        "fp": 0,
+        "tn": 57,
+        "fn": 2,
+        "total": 60,
+        "precision": 1.0,
+        "recall": 0.3333,
+        "f1": 0.5,
+        "accuracy": 0.9667
+      },
+      "test": {
+        "tp": 3,
+        "fp": 3,
+        "tn": 54,
+        "fn": 0,
+        "total": 60,
+        "precision": 0.5,
+        "recall": 1.0,
+        "f1": 0.6667,
+        "accuracy": 0.95
+      }
+    },
+    "combined": {
+      "tp": 13,
+      "fp": 4,
+      "tn": 375,
+      "fn": 8,
+      "total": 400,
+      "precision": 0.7647,
+      "recall": 0.619,
+      "f1": 0.6842,
+      "accuracy": 0.97
+    },
+    "bm25_baseline": {
+      "tp": 13,
+      "fp": 37,
+      "tn": 342,
+      "fn": 8,
+      "total": 400,
+      "precision": 0.26,
+      "recall": 0.619,
+      "f1": 0.3662,
+      "accuracy": 0.8875
+    },
+    "disagreements": {
+      "fp": [
+        {
+          "document_id": "enron_test_008_badeer-r",
+          "split": "test",
+          "score": 0.5242,
+          "subject": "=?ANSI_X3.4-1968?Q?Enron=01,s_Entry_Into_Global_Metals_Market?=",
+          "notes": ""
+        },
+        {
+          "document_id": "enron_test_028_hain-m",
+          "split": "test",
+          "score": 0.4891,
+          "subject": "Confirming What We Already Knew",
+          "notes": ""
+        },
+        {
+          "document_id": "enron_test_052_presto-k",
+          "split": "test",
+          "score": 0.555,
+          "subject": "No Subject",
+          "notes": ""
+        },
+        {
+          "document_id": "enron_train_219_badeer-r",
+          "split": "train",
+          "score": 0.6585,
+          "subject": "The New Power Company",
+          "notes": ""
+        }
+      ],
+      "fn": [
+        {
+          "document_id": "enron_val_014_hain-m",
+          "split": "val",
+          "score": 0.4229,
+          "subject": "selected FERC",
+          "notes": ""
+        },
+        {
+          "document_id": "enron_val_055_badeer-r",
+          "split": "val",
+          "score": 0.4528,
+          "subject": "Distributed Generation Meeting, August 31, 2000",
+          "notes": "CAISO/California ISO meeting notice; relevant because it directly concerns California ISO operations."
+        },
+        {
+          "document_id": "enron_train_066_badeer-r",
+          "split": "train",
+          "score": 0.4135,
+          "subject": "CANCEL Warning Notice",
+          "notes": ""
+        },
+        {
+          "document_id": "enron_train_085_hain-m",
+          "split": "train",
+          "score": 0.4485,
+          "subject": "Re: Ridgewood's Petition To Be Released From QF Contracts",
+          "notes": "California/FERC/QF regulatory issue; legal language is present, but no identified lawyer is participating in the supplied thread, so privilege remains FALSE."
+        },
+        {
+          "document_id": "enron_train_102_scholtes-d",
+          "split": "train",
+          "score": 0.4409,
+          "subject": "WAPA's Increased Acitivities",
+          "notes": "PG&E/WAPA interconnect and banking activity is California-related power infrastructure/market activity, not merely generic scheduling."
+        },
+        {
+          "document_id": "enron_train_190_guzman-m",
+          "split": "train",
+          "score": 0.3962,
+          "subject": "DJ US Energy Secretary Warns Pwr Producers In West On Prices",
+          "notes": ""
+        },
+        {
+          "document_id": "enron_train_192_whalley-g",
+          "split": "train",
+          "score": 0.3959,
+          "subject": "EES VaR Report for 05-17-01",
+          "notes": "Power West positions tied to University of California facilities; treated as California power-market activity."
+        },
+        {
+          "document_id": "enron_train_273_badeer-r",
+          "split": "train",
+          "score": 0.3875,
+          "subject": "Request for Bids - Contract for Generation Under Gas Curtailment   Conditions",
+          "notes": ""
+        }
+      ]
+    }
+  },
+  "privilege": {
+    "hybrid_metrics": {
+      "tp": 12,
+      "fp": 0,
+      "tn": 12,
+      "fn": 0,
+      "total": 24,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0
+    },
+    "regex_baseline_metrics": {
+      "tp": 3,
+      "fp": 2,
+      "tn": 10,
+      "fn": 9,
+      "total": 24,
+      "precision": 0.6,
+      "recall": 0.25,
+      "f1": 0.3529,
+      "accuracy": 0.5417
+    },
+    "runtime_seconds": 109.70477390289307,
+    "api_call_count": 19,
+    "hard_negatives": [
+      {
+        "benchmark_id": "synth_priv_0013",
+        "category": "lawyer_ccd_purely_business_discussion",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "regex_only",
+        "confidence": 0.99,
+        "reasoning": "No privilege markers, work product references, confidentiality notices, or legal counsel mentions identified in document text.",
+        "subject": "August Gas Basis Pricing and Pipeline Nominations (CC: Elena Vance)"
+      },
+      {
+        "benchmark_id": "synth_priv_0014",
+        "category": "boilerplate_disclaimer_only_logistics",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "both",
+        "confidence": 1.0,
+        "reasoning": "The document is a routine administrative communication sent by the Office Manager regarding lunch selections and scheduling for an internal regional operations meeting. No attorney is involved as a sender, recipient, or participant, and there is no legal advice being sought or rendered. The document has no connection to anticipated litigation. The inclusion of a standard boilerplate confidentiality footer does not convey legal privilege to an otherwise purely business and logistical communication.",
+        "subject": "Catering and Lunch Orders for Tomorrow's Regional Operations Workshop"
+      },
+      {
+        "benchmark_id": "synth_priv_0015",
+        "category": "legal_dept_routine_administrative_intake",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is an automated administrative notification generated by the Legal Department workflow portal acknowledging the receipt of a contract review submission. It contains no substantive legal advice, communication from an attorney rendering legal counsel, or discussion of anticipated litigation. It merely confirms routine business workflow and intake status.",
+        "subject": "Automated Ticket Confirmation: Contract Review Request #2024-0891 Assigned"
+      },
+      {
+        "benchmark_id": "synth_priv_0016",
+        "category": "forwarding_lawyer_contact_info_unrelated",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is merely an administrative communication sharing the contact information of an outside patent attorney and discussing a social/charitable golf outing. It contains no request for legal advice, no legal analysis, and was not prepared in anticipation of litigation. The mere mention of an attorney does not render a document privileged.",
+        "subject": "Contact info for patent attorney / golf charity event"
+      },
+      {
+        "benchmark_id": "synth_priv_0017",
+        "category": "general_counsel_scheduling_meeting",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "llm_only",
+        "confidence": 1.0,
+        "reasoning": "Although the sender is an Associate General Counsel, the communication is strictly administrative in nature, concerning the rescheduling of an executive team lunch. It does not contain any request for or provision of legal advice, nor was it prepared in anticipation of litigation. It is a routine business communication.",
+        "subject": "Rescheduling Q3 Executive Strategy Lunch to Next Thursday"
+      },
+      {
+        "benchmark_id": "synth_priv_0018",
+        "category": "public_regulatory_filing_distribution",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "Although the email is authored by Richard Thornton, who holds the title of General Counsel, the communication is merely sharing a publicly available government notice (FERC Notice of Proposed Rulemaking) for general commercial awareness. It does not contain substantive legal analysis, request legal advice, or convey confidential legal counsel. Furthermore, it explicitly states that 'No action is required from trading desks at this stage,' and the document was not prepared in anticipation of litigation. This is a routine regulatory update/business communication, which does not qualify for Attorney-Client Privilege or the Work Product Doctrine.",
+        "subject": "FYI: Public FERC Order 888 Rulemaking Notice Posted Today"
+      },
+      {
+        "benchmark_id": "synth_priv_0019",
+        "category": "outside_counsel_billing_invoice_inquiry",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is a standard billing communication from a billing coordinator at a law firm to an accounts payable team, requesting payment for professional legal services rendered. It contains no legal advice, litigation preparation, or confidential client communications protected by attorney-client privilege. Invoices and fee arrangements are generally not privileged unless they reveal confidential legal strategy, which is not the case here.",
+        "subject": "Invoice #88412 - Ross & Keller LLP / Apex Logistics Matter 4022"
+      },
+      {
+        "benchmark_id": "synth_priv_0020",
+        "category": "boilerplate_disclaimer_press_release",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "both",
+        "confidence": 1.0,
+        "reasoning": "The document is a public relations press release announcing the launch of Zenith Financial Corp's new Sustainable Infrastructure & Tax Equity financing group. Although the text contains a standard boilerplate confidentiality notice referencing attorney-client privilege, the document itself is a commercial marketing/press announcement intended for public release. It does not involve any communication seeking or providing legal advice, nor was it prepared in anticipation of litigation. The inclusion of a privilege footer on a public press release does not confer legal privilege.",
+        "subject": "PRESS RELEASE: Zenith Financial Announces Expansion into Renewable Energy Tax Equity"
+      },
+      {
+        "benchmark_id": "synth_priv_0021",
+        "category": "lawyer_acting_purely_in_business_negotiator_role",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "Although the sender's title includes 'Corporate Counsel', the communication is entirely commercial in nature. Samuel Vance is acting in a business capacity as the VP Business Assets negotiating the purchase price, delivery terms, and logistics for surplus turbine rotor blades. There is no request for, nor provision of, legal advice. The communication constitutes a routine commercial negotiation, which does not attract the attorney-client privilege.",
+        "subject": "Counteroffer on Secondary Market Turbine Blades - $1.2M Firm"
+      },
+      {
+        "benchmark_id": "synth_priv_0022",
+        "category": "legal_seminar_cle_announcement",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "regex_only",
+        "confidence": 0.99,
+        "reasoning": "No privilege markers, work product references, confidentiality notices, or legal counsel mentions identified in document text.",
+        "subject": "Upcoming CLE Seminar: Recent Developments in Federal Energy Regulatory Commission Enforcement"
+      },
+      {
+        "benchmark_id": "synth_priv_0023",
+        "category": "business_employee_asking_general_status",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "regex_only",
+        "confidence": 0.99,
+        "reasoning": "No privilege markers, work product references, confidentiality notices, or legal counsel mentions identified in document text.",
+        "subject": "Status check on Non-Disclosure Agreement for Vendor XYZ"
+      },
+      {
+        "benchmark_id": "synth_priv_0024",
+        "category": "forwarded_public_news_article_by_counsel",
+        "ground_truth": false,
+        "pred_privileged": false,
+        "detection_method": "regex_only",
+        "confidence": 0.99,
+        "reasoning": "No privilege markers, work product references, confidentiality notices, or legal counsel mentions identified in document text.",
+        "subject": "News Article: Wall Street Journal Article on Western Water Rights Ruling"
+      }
+    ],
+    "genuine_privileges": [
+      {
+        "benchmark_id": "synth_priv_001",
+        "category": "legal_advice_regulatory_compliance",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "both",
+        "confidence": 0.99,
+        "reasoning": "The communication is strictly confidential and is directly between an attorney acting in her legal capacity (Elena Vance, Senior Regulatory Counsel at Apollo Legal Advisors LLP) and her clients (Marcus and Sarah). The primary purpose of the communication is to render formal legal advice regarding regulatory compliance under the Commodity Exchange Act and to provide legally protective drafting solutions (standardized fallback language to preserve a bona fide hedging exclusion). This is a core attorney-client legal communication, not a mere business discussion.",
+        "subject": "Privileged & Confidential: Legal Assessment of CFTC Rule 43 Swaps Reporting"
+      },
+      {
+        "benchmark_id": "synth_priv_002",
+        "category": "litigation_strategy_work_product",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 1.0,
+        "reasoning": "The document is a communication from trial counsel to the client sharing a revised trial outline and litigation strategy for an upcoming deposition and hearing. It reflects mental impressions, legal theories, and a targeted cross-examination sequence prepared in anticipation of litigation (before Judge Harmon next month), and is maintained confidentially within the litigation steering committee.",
+        "subject": "ATTORNEY WORK PRODUCT: Deposition Prep and Cross-Examination Strategy in Apex v. RailCorp"
+      },
+      {
+        "benchmark_id": "synth_priv_003",
+        "category": "legal_advice_contract_indemnity",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 1.0,
+        "reasoning": "The document is a direct communication from an attorney acting in a legal capacity (Assistant General Counsel - Commercial Projects) to company employees (Rachel and Kevin). The primary purpose of the communication is to provide formal legal advice regarding the interpretation of contract terms under Texas law (indemnification, consequential damages, CERCLA, express negligence doctrine) and to propose specific contractual revisions to mitigate legal exposure. The communication is confidential and directly serves to render legal counsel on a commercial draft.",
+        "subject": "LEGAL ADVICE: Indemnification Clause Risk in Project Sierra EPC Contract"
+      },
+      {
+        "benchmark_id": "synth_priv_004",
+        "category": "litigation_strategy_settlement",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 1.0,
+        "reasoning": "The document is a direct communication from lead defense counsel to the clients providing substantive legal advice, litigation risk analysis, and strategic settlement recommendations for an upcoming court-ordered settlement conference before a magistrate judge. It reflects attorney mental impressions prepared in anticipation of litigation.",
+        "subject": "CONFIDENTIAL ATTORNEY-CLIENT PRIVILEGED: Mediation Risk Assessment and Settlement Authority"
+      },
+      {
+        "benchmark_id": "synth_priv_005",
+        "category": "internal_investigation_counsel",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "regex_only",
+        "confidence": 0.98,
+        "reasoning": "Document contains explicit high-confidence privilege indicators (attorney-client privilege). Under e-discovery recall-first safeguards, explicit privilege headers and anticipation-of-litigation markers are classified as privileged without subjective discount.",
+        "subject": "PRIVILEGED AND CONFIDENTIAL: Interim Findings on Whistleblower Allegations (Trade Allocation)"
+      },
+      {
+        "benchmark_id": "synth_priv_006",
+        "category": "legal_advice_ip_patent_infringement",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is a confidential legal communication from a registered patent attorney (Arthur Pendleton) to the client (Dr. Aris and Engineering Team). The primary purpose is to provide substantive legal advice regarding patent clearance, infringement analysis of specific claims of a third-party patent (US Patent 8,492,101), and explicit legal recommendations to mitigate doctrine-of-equivalents vulnerability. Therefore, it satisfies all requirements for Attorney-Client Privilege.",
+        "subject": "ATTORNEY-CLIENT PRIVILEGED: Freedom-to-Operate Analysis for Compound NB-409"
+      },
+      {
+        "benchmark_id": "synth_priv_007",
+        "category": "legal_advice_employment_termination",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is a confidential communication from Laura Chen, Associate General Counsel for Labor & Employment, to a corporate client (Tom) regarding a personnel decision that carries a high legal risk of a statutory retaliation claim. The primary purpose is to provide legal advice and risk assessment regarding an OSHA complaint, and it recommends specific legal and risk-mitigation strategies (a performance improvement plan or mutual separation agreement with a comprehensive release). Furthermore, the document constitutes work product, as it addresses defending against an anticipated statutory retaliation action by establishing contemporaneous documentation of performance deficiencies.",
+        "subject": "CONFIDENTIAL: Legal Guidance on Proposed Involuntary Separation - Northwest Region"
+      },
+      {
+        "benchmark_id": "synth_priv_008",
+        "category": "regulatory_defense_ferc_inquiry",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 0.98,
+        "reasoning": "The document is protected by both the Attorney-Client Privilege and the Work Product Doctrine. First, the email is authored by Richard Thornton, Vice President & General Counsel, communicating directly in his legal capacity to company employees (Martin and Greg) regarding an official inquiry from FERC's Division of Investigations. The primary purpose of the communication is to render legal advice and direct the formulation of a legal response to a regulatory enforcement matter. Second, the document satisfies the Work Product Doctrine because it was prepared in response to an active government data request concerning potential market manipulation under 18 CFR Part 1c, explicitly anticipating a contested administrative proceeding or enforcement action, and requests underlying data for the attorney's 'privileged review' in preparing the defense.",
+        "subject": "ATTORNEY WORK PRODUCT: Response Strategy to FERC Enforcement Staff Data Request"
+      },
+      {
+        "benchmark_id": "synth_priv_009",
+        "category": "antitrust_compliance_legal_advice",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is a confidential communication from an outside legal counsel (Antitrust Practice Group Leader at Goldstein & Partners LLP) to the executive team. The primary purpose of the communication is to render formal legal advice regarding the antitrust implications and legal risks under Section 1 of the Sherman Act concerning a proposed business agreement, and includes specific legal recommendations on how to restructure the arrangement.",
+        "subject": "ATTORNEY-CLIENT PRIVILEGED: Antitrust Review of Proposed Capacity Sharing Agreement"
+      },
+      {
+        "benchmark_id": "synth_priv_0010",
+        "category": "legal_advice_environmental_enforcement",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The document is a direct communication from external Environmental Counsel (Stephen Walsh) to the client (Danielle) providing a substantive legal assessment of an EPA administrative consent order, analyzing statutory penalty calculations, interpreting regulatory defenses (40 CFR 60.11), and providing a drafted response letter in the context of ongoing enforcement proceedings. It meets both the Attorney-Client Privilege standard (primary purpose of rendering legal advice) and the Work Product Doctrine standard (prepared in anticipation of litigation/enforcement action).",
+        "subject": "PRIVILEGED & CONFIDENTIAL: EPA Region 9 Notice of Violation - Settlement Negotiation Posture"
+      },
+      {
+        "benchmark_id": "synth_priv_0011",
+        "category": "merger_regulatory_clearance_advice",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "llm_only",
+        "confidence": 0.99,
+        "reasoning": "The communication is from external legal counsel (Claudia Vogel, Partner at Vogel & Hartman LLP) to the client (Brett and Members of the Board) providing substantive legal advice regarding antitrust regulatory risks, pre-merger notification filings, and legal strategy for the Cascade Midstream acquisition. Furthermore, it constitutes work product as it was prepared in anticipation of regulatory scrutiny and litigation (specifically an FTC Second Request) regarding the merger.",
+        "subject": "ATTORNEY-CLIENT PRIVILEGED: HSR Clearance and Hart-Scott-Rodino Second Request Vulnerability"
+      },
+      {
+        "benchmark_id": "synth_priv_0012",
+        "category": "internal_legal_memorandum_tax",
+        "ground_truth": true,
+        "pred_privileged": true,
+        "detection_method": "both",
+        "confidence": 0.99,
+        "reasoning": "The document is a formal legal memorandum written by the Chief Tax Counsel of the company, providing legal analysis and interpretation of IRS rules and regulations regarding tax credit qualification. Furthermore, the author explicitly directs that the memorandum be treated as privileged attorney-client work product prepared in anticipation of an IRS examination, satisfying both the primary purpose of rendering legal advice and preparation for anticipated adversarial proceedings.",
+        "subject": "LEGAL MEMORANDUM: Tax Opinion on Section 45 Production Tax Credit Eligibility"
+      }
+    ]
+  }
+}

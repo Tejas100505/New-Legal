@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_008@legal-eval.local>
+From: richard.thornton@thorntonenergy.com
+To: martin.sellers@thorntonenergy.com, greg.hayes@thorntonenergy.com
+Subject: ATTORNEY WORK PRODUCT: Response Strategy to FERC Enforcement Staff Data Request
+Category: regulatory_defense_ferc_inquiry
+Source: synthetic
+
+Martin and Greg,
+
+FERC's Division of Investigations issued an informal data request yesterday concerning bidding behavior in the PJM day-ahead ancillary services market. My legal assessment is that FERC staff is testing whether our virtual bids constituted manipulative anti-competitive withholding under 18 CFR Part 1c. We must formulate our response narrative carefully: our submissions must demonstrate that every bid reflected bona fide economic dispatch models. I will draft our response narrative; please pull the underlying econometric dispatch curves by Friday for my privileged review before anything is disclosed.
+
+Richard Thornton
+Vice President & General Counsel
+Thornton Energy Trading LLC

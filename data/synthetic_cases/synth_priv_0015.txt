@@ -1,0 +1,20 @@
+Message-ID: <synth_priv_0015@legal-eval.local>
+From: contracts-intake@solisutilities.com
+To: robert.hayward@solisutilities.com
+Subject: Automated Ticket Confirmation: Contract Review Request #2024-0891 Assigned
+Category: legal_dept_routine_administrative_intake
+Source: synthetic
+
+Robert Hayward,
+
+This automated message confirms that your contract review submission has been logged into the Legal Department workflow portal.
+Ticket ID: LEG-2024-0891
+Submission Date: August 14, 2024
+Counterparty: Caterpillar Financial Services
+Assigned Reviewer: TBD (Commercial Legal Queue)
+Target Turnaround: 5 business days
+
+You will receive an email update once an attorney has been assigned to begin drafting review. Please do not reply directly to this ticket notification.
+
+Legal Department Operations Portal
+Solis Utilities Inc.

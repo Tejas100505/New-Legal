@@ -1,0 +1,14 @@
+Message-ID: <synth_priv_005@legal-eval.local>
+From: rebecca.hastings@sterlinglegal.com
+To: audit.committee@zenithfin.com
+Subject: PRIVILEGED AND CONFIDENTIAL: Interim Findings on Whistleblower Allegations (Trade Allocation)
+Category: internal_investigation_counsel
+Source: synthetic
+
+To the Audit Committee of the Board of Directors:
+
+At the direction of the Audit Committee, we have conducted an independent legal inquiry into the whistleblower complaint dated January 14 regarding block-trading allocations in the municipal bond group. Based on our preliminary interview of six trading floor employees and review of Bloomberg chat archives, we have identified potential exposure under SEC Rule 10b-5 and Section 17(a) of the Securities Act. We advise immediately suspending data purge protocols on the secondary backup servers and retaining outside forensic accounting experts under our supervision to preserve attorney-client privilege over their work papers.
+
+Rebecca Hastings
+Special Counsel to the Audit Committee
+Sterling & Sterling LLP

@@ -1,0 +1,15 @@
+Message-ID: <synth_priv_0023@legal-eval.local>
+From: jennifer.lopez@apexpipeline.com
+To: legal-contracts@apexpipeline.com
+Subject: Status check on Non-Disclosure Agreement for Vendor XYZ
+Category: business_employee_asking_general_status
+Source: synthetic
+
+Legal Team,
+
+Could someone please check the status of the standard mutual NDA submitted for Vendor XYZ (Cisco Systems IT service agreement) last Thursday? Our cybersecurity team needs the executed document before Cisco can deliver the firewalls next Tuesday. Let me know if there are any redlines or if it is already out for signature via DocuSign.
+
+Thanks,
+Jennifer Lopez
+IT Infrastructure Procurement
+Apex Pipeline Co.

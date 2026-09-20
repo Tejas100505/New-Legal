@@ -534,3 +534,201 @@ the case-investigation story).
    capabilities diverge from what was previously written.
 9. **Zero cost / free-tier only** — no paid APIs, no paid infrastructure,
    throughout the entire project.
+
+## 16. Frontend / UX Direction — Claude Opus Audit
+
+*This section captures the frontend, UI, and UX audit findings and proposed
+architectural direction identified during the Claude Opus UX evaluation and
+subsequent implementation planning. This section serves as design and
+architectural input for future implementation work (specifically Batch 4); it
+is NOT a description of completed or verified frontend implementation.*
+
+### A. Current UX Audit Finding
+
+The current frontend experience was assessed as feeling more like an
+AI/engineering dashboard than a legal investigation product.
+
+The primary UX direction is therefore to reorganize the product around the
+legal investigator/lawyer's investigation workflow rather than around
+technical AI/backend functionality.
+
+This finding does **not** claim that the existing frontend is non-functional.
+The existing frontend capabilities remain fully operational and valuable; the
+issue is the overall information architecture, workflow presentation,
+prioritization, and product framing.
+
+### B. Product UX Principle
+
+**Core Principle:** The frontend should make the existing real capabilities
+feel like one coherent legal investigation product.
+
+The interface should center the user's investigation workflow and evidentiary
+materials, while technical AI/system information should remain secondary or
+appropriately separated into administrative views.
+
+The product should help the legal investigator understand:
+- what is happening in the case,
+- what requires attention,
+- what evidence supports a finding,
+- what entities and relationships matter,
+- what happened over time (timeline of key events),
+- what documents and findings require review,
+- what can be asked of the evidence, and
+- what reports can be generated.
+
+The system does **not** make autonomous legal decisions or automated legal
+conclusions; the UI must support human review and verification.
+
+### C. Proposed Global Navigation (PROPOSED / FUTURE UX DIRECTION)
+
+*Status: PROPOSED / FUTURE UX DIRECTION — NOT CURRENTLY IMPLEMENTED.*
+
+The proposed top-level navigation structure:
+- **Dashboard**
+- **Cases**
+- **Search**
+- **Reports**
+- **Settings**
+
+This navigation model is proposed for future frontend work to replace the
+current flat tool-oriented navigation. It has not yet been built or wired.
+
+### D. Proposed Case Workspace (PROPOSED / FUTURE UX DIRECTION)
+
+*Status: PROPOSED / FUTURE INFORMATION ARCHITECTURE — NOT CURRENTLY IMPLEMENTED.*
+
+Within a selected case, the proposed future case-centric workspace structure
+organizes investigation capabilities into dedicated tabs/views:
+- **Overview** (case status, key findings, quick stats, triage summary)
+- **Evidence** (document corpus, ingestion, metadata, document viewer)
+- **Review** (prioritized human-review queue, privilege/risk triage, human sign-off)
+- **Findings** (extracted risk flags, privilege assessments, notable provisions)
+- **Relationships** (entity knowledge graph, co-occurrence, centrality, alias inspection)
+- **Timeline** (chronological event stream, multi-format date extractions)
+- **Ask** (grounded Q&A against case evidence — planned for Batch 3 backend, future frontend)
+- **Report** (multi-format audit report generation and export)
+
+The intent is to make the individual Case the primary workspace and expose
+the system's investigation capabilities through a coherent case-centric
+workflow. These routes/tabs do not currently exist in the frontend in this
+form.
+
+### E. Dashboard Direction
+
+**Proposed Dashboard Principle:** The Dashboard should primarily answer:
+
+> *"What needs my attention?"*
+
+rather than primarily exposing technical AI/system metrics.
+
+The dashboard should prioritize actionable case information, such as:
+- where review attention is urgently needed (unconfirmed privilege/risk flags),
+- important findings and escalations across active cases,
+- relevant incoming or processed evidence,
+- recent case activity, and
+- overall investigation and review progress.
+
+Technical and AI health information (model status, execution times, token
+counts) should not dominate the primary lawyer workflow.
+
+### F. Case-Centric Investigation Flow
+
+The intended conceptual relationship for the user experience:
+
+```
+Dashboard ("What needs my attention?")
+    ↓
+Cases (Select or manage case)
+    ↓
+Case Workspace (Primary investigative context)
+    ↓
+Evidence / Review / Findings / Relationships / Timeline / Ask / Report
+```
+
+This represents a UX information-architecture direction, **not** an
+implementation requirement for the current backend. Its purpose is to guide
+future frontend structuring so that the investigator's journey feels
+cohesive and case-first.
+
+### G. Technical / Admin Separation
+
+Advanced technical and administrative functionality should be cleanly
+separated from the primary legal-investigation workflow:
+- **Primary UI:** Dedicated strictly to the legal investigation workflow,
+  evidence exploration, review tasks, and reporting.
+- **Advanced / Admin UI:** Houses technical AI/system diagnostics, model
+  configuration, infrastructure details, quota status, operational controls,
+  and system health metrics.
+
+Existing technical functionality will **not** be removed; rather, it will be
+relocated to dedicated settings or administrative areas so that technical
+complexity does not distract or overwhelm the investigator.
+
+### H. Existing Capabilities to Preserve
+
+The UX redesign is intended to organize and present existing capabilities
+more effectively, **not** to replace or discard them. Key verified
+capabilities that must be preserved and surfaced in the future UI include:
+- Evidence / document processing and ingestion
+- Document semantic and keyword search
+- Entity extraction and canonicalization (domain NER, alias resolution)
+- Relationships / Knowledge Graph (weighted edges, centrality sizing)
+- Risk and privilege findings (with grounded rationale and evidence excerpts)
+- Prioritized review workflow (Triage Orchestrator flags and human sign-off)
+- Chronological timeline extraction
+- Case-level intelligence summary (Tier 1 overview + Tier 2 findings)
+- Grounded RAG Q&A (planned in Batch 3 — **NOT currently implemented**)
+- Audit-ready report generation (PDF, DOCX, CSV, JSON, Markdown)
+- End-to-end evidence traceability (chunk, section, page citations)
+
+*Note: Batch 3 (Grounded RAG Q&A) remains NEXT / NOT STARTED. It is listed
+here solely as a pipeline capability to be accommodated in future UI planning.*
+
+### I. UX Design Principles for Future Implementation
+
+Guiding principles to govern the future frontend implementation (Batch 4):
+1. **Case-first rather than technology-first:** The user investigates a case,
+   not an AI pipeline.
+2. **Evidence and traceability:** Every finding, summary, and answer must
+   visibly connect back to its source evidence (chunk, section, page citations).
+3. **Actionable review:** Work requiring human attention (privilege escalations,
+   high-risk flags) must be immediately identifiable and accessible.
+4. **Appropriate complexity:** Deep technical details must remain secondary
+   to investigative insight.
+5. **Clear provenance:** AI-generated suggestions must remain clearly
+   distinguishable from verified factual evidence.
+6. **Human-in-the-loop:** The UI must support human review and confirmation;
+   it must never imply autonomous legal decision-making.
+7. **Honest surfacing:** Real backend data and verified models must be surfaced
+   honestly without placeholder masks or disguised mock metrics.
+8. **Explicit states:** Loading, empty, unavailable, quota-paused, and
+   insufficient-evidence states must be presented explicitly rather than
+   fabricated or hidden.
+9. **Grounded answers:** Future RAG responses must visibly cite supporting
+   evidence passages.
+10. **Auditable workflow:** The interface must support an auditable,
+    defensible chain of custody and review history.
+
+### J. Future Frontend Implementation Scope (Batch 4)
+
+This UX direction is intended to guide the future frontend workstream,
+primarily **Batch 4**.
+
+It is **NOT** part of Batch 3 implementation:
+- **Batch 1:** CLOSED / VERIFIED (Persistence Scaffolding).
+- **Batch 2:** CLOSED / VERIFIED (Case Summary Generation).
+- **Batch 3:** NEXT / NOT STARTED (Grounded RAG Q&A backend implementation).
+- **Batch 4:** Future work (Frontend / UX redesign and implementation).
+
+Frontend implementation will begin only after the relevant UX architecture,
+wireframes, and implementation plan are formally reviewed and approved.
+
+### K. Architectural Boundary: Audit vs. Implementation
+
+**Explicit Boundary Rule:** Claude Opus UX audit findings and recommendations
+represent design and architectural input. They are **not** evidence that the
+proposed UI has already been implemented.
+
+The current frontend implementation remains as documented in Section 11 and
+`CURRENT_STATUS.md`. Future verification must independently establish which UX
+elements actually exist before any claim of completion is made.

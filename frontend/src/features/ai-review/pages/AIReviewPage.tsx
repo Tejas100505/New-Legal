@@ -4,7 +4,7 @@
  * privilege detection analysis, and enum-validated human overrides.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Brain, FileText, Check, AlertTriangle, Loader2,
   ShieldCheck, ShieldAlert, CheckCircle2,
@@ -23,7 +23,11 @@ import {
 import { XAIExplanation, type XAIData } from '@/components/molecules/XAIExplanation';
 import api from '@/lib/api';
 
-export function AIReviewPage() {
+interface AIReviewPageProps {
+  caseId?: string;
+}
+
+export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<LegalDocument | null>(null);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
@@ -40,10 +44,12 @@ export function AIReviewPage() {
   const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     setIsLoadingDocs(true);
     try {
-      const res = await api.get('/documents');
+      const params: Record<string, string> = {};
+      if (caseId) params.case_id = caseId;
+      const res = await api.get('/documents', { params });
       const rawDocs = res.data.documents || [];
       const mapped: LegalDocument[] = rawDocs.map((d: any) => {
         const privAnalysis: PrivilegeAnalysis | null = d.doc_metadata?.privilege_analysis || null;
@@ -96,11 +102,11 @@ export function AIReviewPage() {
     } finally {
       setIsLoadingDocs(false);
     }
-  };
+  }, [caseId]);
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+  }, [fetchDocuments]);
 
   // Check if document has detailed text, if not fetch full document detail
   useEffect(() => {

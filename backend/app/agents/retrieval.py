@@ -42,6 +42,7 @@ class RetrievalResult(BaseModel):
     score: float
     confidence: float
     text: str
+    vector_score: Optional[float] = None
 
 
 class RetrievalOutput(BaseModel):
@@ -108,9 +109,9 @@ class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
         corpus = [chunk.text for chunk in filtered_chunks]
         
         # 2. BM25 Scoring
-        tokenized_corpus = [doc.split(" ") for doc in corpus]
+        tokenized_corpus = [re.findall(r"\b\w+\b", doc.lower()) for doc in corpus]
         bm25 = BM25Okapi(tokenized_corpus)
-        tokenized_query = validated_input.query.split(" ")
+        tokenized_query = re.findall(r"\b\w+\b", validated_input.query.lower())
         bm25_scores = bm25.get_scores(tokenized_query)
         
         # 3. Cross-Encoder Reranking
@@ -143,7 +144,8 @@ class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
                 citation=citation,
                 score=round(final_score, 4),
                 confidence=round(c_score, 4), # using CE score as confidence
-                text=chunk.text
+                text=chunk.text,
+                vector_score=round(chunk.vector_score, 4) if chunk.vector_score is not None else None,
             ))
             
         # 5. Sort by final score

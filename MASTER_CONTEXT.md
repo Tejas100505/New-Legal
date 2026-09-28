@@ -79,8 +79,7 @@ evidence backs every finding.
 ## 4. Full Pipeline / Agent Inventory (VERIFIED, as of last full audit)
 
 | # | Agent | File | Type | Status |
-|---|---|---|---|---|
-| 1 | OCRAgent | `ocr.py` | Deterministic + LLM fallback | Real & tested. **Known issue:** mock fallback strings ("Meridian Corp", "Dr. James Whitfield") still present at lines ~166-171 and ~210-223, used only if both pypdf/Tesseract and Gemini vision fail. Flagged, not yet removed. |
+| 1 | OCRAgent | `ocr.py` | Deterministic + LLM fallback | Real & tested. Mock fallback strings ("Meridian Corp", "Dr. James Whitfield") fully eliminated. Replaced with honest failure state (`DocumentStatus.ERROR` with audit reason `ocr_extraction_failed_both_engines` in `status_history`). PlainTextEngine & HeuristicFallbackEngine hardened against empty/binary files. Verified zero occurrences in `backend/app/agents/ocr.py` and zero in production database. |
 | 2 | DocumentIngestionAgent | `ingestion.py` | Deterministic | Real & tested |
 | 3 | ClassificationAgent | `classification.py` | LLM (Gemini) + keyword fallback | Real & tested. Has fallback-LLM retry pattern (added later) plus a fixed response-parsing bug (list-of-dicts content handling) |
 | 4 | ChunkingAgent | `chunking.py` | Deterministic | Real & tested |
@@ -528,12 +527,18 @@ the case-investigation story).
    problem in Section 11) — continued skepticism toward self-reported
    completion is warranted, especially before anything goes into the
    report or a demo.
-8. **Keep the written report honestly aligned with the actual system
+8. **Output-Anchored Reporting:** Any report describing the results of a
+   script execution (especially database mutations or verifications) must
+   derive its stated values exclusively from actually-captured stdout/stderr,
+   quoted or directly referenced — never composed from expectation of what
+   output "should" be. A violation invalidates the report and requires
+   independent re-verification before dependent decisions proceed.
+9. **Keep the written report honestly aligned with the actual system
    state** — never let the report claim more than what's actually built
    and verified; update report text whenever the system's real
    capabilities diverge from what was previously written.
-9. **Zero cost / free-tier only** — no paid APIs, no paid infrastructure,
-   throughout the entire project.
+10. **Zero cost / free-tier only** — no paid APIs, no paid infrastructure,
+    throughout the entire project.
 
 ## 16. Frontend / UX Direction — Claude Opus Audit
 

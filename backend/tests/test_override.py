@@ -22,13 +22,32 @@ from app.models.audit_log import AuditLog
 from app.auth.dependencies import create_access_token, UserRole
 from app.schemas.document import OverrideField, OverrideAction
 
+from app.models.user import User
+
 client = TestClient(app)
 
 
 async def init_test_db():
     db_session_module.AsyncSessionLocal = OverrideSessionLocal
     async with override_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
+
+async def seed_user(user_id: str, email: str, role: UserRole = UserRole.LAWYER) -> str:
+    async with OverrideSessionLocal() as session:
+        user = User(
+            id=uuid.UUID(user_id),
+            email=email,
+            hashed_password="pw",
+            full_name=f"User {email}",
+            role=role,
+            is_active=True,
+            token_version=0,
+        )
+        session.add(user)
+        await session.commit()
+    return create_access_token(user_id=user_id, email=email, role=role, token_version=0)
 
 
 @pytest.mark.asyncio
@@ -49,7 +68,7 @@ async def test_override_requires_authentication():
 async def test_override_field_enum_validation():
     """Verify invalid free-text field strings are rejected by Pydantic validation (422)."""
     await init_test_db()
-    token = create_access_token(user_id=str(uuid.uuid4()), email="lawyer@firm.com", role=UserRole.LAWYER)
+    token = await seed_user(str(uuid.uuid4()), "lawyer@firm.com", UserRole.LAWYER)
     headers = {"Authorization": f"Bearer {token}"}
     fake_id = str(uuid.uuid4())
 
@@ -70,7 +89,7 @@ async def test_human_override_and_audit_log_flow():
 
     user_id = str(uuid.uuid4())
     reviewer_email = "senior_counsel@apexlegal.com"
-    token = create_access_token(user_id=user_id, email=reviewer_email, role=UserRole.LAWYER)
+    token = await seed_user(user_id, reviewer_email, UserRole.LAWYER)
     headers = {"Authorization": f"Bearer {token}"}
 
     # Create a test document in the DB

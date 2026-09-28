@@ -73,7 +73,7 @@ function getPreviewData(type: string, dataSources: PreviewDataSources = {}): {
           badge: d.isPrivileged ? 'Privileged' : d.riskLevel || 'analyzed',
           badgeVariant: d.riskLevel === 'critical' || d.isPrivileged ? 'danger' as const : 'warning' as const,
         })),
-        stat: `${documents.length || 424} reviewed`,
+        stat: `${documents.length} reviewed`,
       };
     }
     case 'risk_analysis': {
@@ -105,15 +105,17 @@ function getPreviewData(type: string, dataSources: PreviewDataSources = {}): {
         })),
         stat: '21,327 vectors',
       };
-    case 'latest_reports':
+    case 'latest_reports': {
+      const activeCaseName = cases.length > 0 ? (cases[0].name || cases[0].case_name || 'Active Case') : 'Active Case';
       return {
         items: [
-          { id: 'rep-1', label: 'Privilege Log Export', sub: 'California Energy Inquiry', badge: 'ready', badgeVariant: 'success' as const },
-          { id: 'rep-2', label: 'Executive Case Brief', sub: '424 Analyzed Records', badge: 'ready', badgeVariant: 'success' as const },
+          { id: 'rep-1', label: 'Privilege Log Export', sub: activeCaseName, badge: 'ready', badgeVariant: 'success' as const },
+          { id: 'rep-2', label: 'Executive Case Brief', sub: `${documents.length} Analyzed Records`, badge: 'ready', badgeVariant: 'success' as const },
           { id: 'rep-3', label: 'Audit Trail Export', sub: 'Chain of custody log', badge: 'ready', badgeVariant: 'success' as const },
         ],
         stat: '3 available',
       };
+    }
     case 'linked_evidence': {
       const docCount = documents.length;
       return {

@@ -57,8 +57,24 @@ export function LoginPage() {
         setError('Please provide a valid email address.');
         return;
       }
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters in length.');
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters long.');
+        return;
+      }
+      if (!/[A-Z]/.test(password)) {
+        setError('Password must contain at least one uppercase letter.');
+        return;
+      }
+      if (!/[a-z]/.test(password)) {
+        setError('Password must contain at least one lowercase letter.');
+        return;
+      }
+      if (!/[0-9]/.test(password)) {
+        setError('Password must contain at least one digit.');
+        return;
+      }
+      if (!/[^A-Za-z0-9]/.test(password)) {
+        setError('Password must contain at least one special character.');
         return;
       }
       if (password !== confirmPassword) {
@@ -128,6 +144,7 @@ export function LoginPage() {
           <div className="flex bg-slate-950/60 p-1 rounded-lg border border-slate-800">
             <button
               type="button"
+              id="signin-tab-btn"
               onClick={() => switchMode('signin')}
               className={cn(
                 'px-3 py-1 text-xs font-semibold rounded transition-all',
@@ -140,6 +157,7 @@ export function LoginPage() {
             </button>
             <button
               type="button"
+              id="signup-tab-btn"
               onClick={() => switchMode('signup')}
               className={cn(
                 'px-3 py-1 text-xs font-semibold rounded transition-all',
@@ -262,7 +280,7 @@ export function LoginPage() {
                 Password <span className="text-rose-400">*</span>
               </label>
               {mode === 'signup' && (
-                <span className="text-[10px] text-slate-500">Min 6 characters</span>
+                <span className="text-[10px] text-slate-500">Min 8 chars, uppercase, lowercase, number, symbol</span>
               )}
             </div>
             <div className="relative">
@@ -274,7 +292,7 @@ export function LoginPage() {
                 placeholder="••••••••"
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-950/80 border border-slate-700/80 text-slate-100 text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
               />
             </div>
@@ -300,7 +318,7 @@ export function LoginPage() {
                   placeholder="••••••••"
                   className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-950/80 border border-slate-700/80 text-slate-100 text-xs placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                   required
-                  minLength={6}
+                  minLength={8}
                   autoComplete="new-password"
                 />
               </div>
@@ -338,7 +356,7 @@ export function LoginPage() {
               type="button"
               onClick={() => {
                 setEmail('user@example.com');
-                setPassword('password123');
+                setPassword('Password123!');
               }}
               className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-[11px] font-medium text-indigo-300 transition-colors flex items-center justify-center gap-1.5"
             >

@@ -5,9 +5,9 @@ Chunk repository — database access and vector search for chunks.
 from __future__ import annotations
 
 import uuid
-from typing import Sequence
+from typing import Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chunk import DocumentChunk
@@ -33,6 +33,7 @@ class ChunkRepository(BaseRepository[DocumentChunk]):
         query_embedding: list[float],
         limit: int = 10,
         filters: dict | None = None,
+        min_chunk_chars: Optional[int] = None,
     ) -> Sequence[tuple[DocumentChunk, float]]:
         """
         Perform a nearest-neighbor vector search using pgvector cosine distance,
@@ -45,6 +46,9 @@ class ChunkRepository(BaseRepository[DocumentChunk]):
                 DocumentChunk,
                 (1.0 - distance_expr).label("similarity")
             ).order_by(distance_expr).limit(limit)
+
+            if min_chunk_chars is not None:
+                stmt = stmt.where(func.length(DocumentChunk.text) >= min_chunk_chars)
 
             if filters:
                 if "document_id" in filters:
@@ -68,6 +72,8 @@ class ChunkRepository(BaseRepository[DocumentChunk]):
         import numpy as np
 
         stmt = select(DocumentChunk)
+        if min_chunk_chars is not None:
+            stmt = stmt.where(func.length(DocumentChunk.text) >= min_chunk_chars)
         if filters:
             if "document_id" in filters:
                 stmt = stmt.where(DocumentChunk.document_id == filters["document_id"])

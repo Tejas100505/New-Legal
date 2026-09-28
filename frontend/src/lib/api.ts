@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
  */
 const api = axios.create({
   baseURL: '/api/v1',
-  timeout: 30000,
+  timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -47,8 +47,15 @@ api.interceptors.response.use(
         message = 'Server error. Please try again later.';
       }
 
-      console.error(`[API Error ${status}]:`, data);
-      toast.error(message);
+      const isSuppressed = Boolean(
+        error.config?.suppressErrorToast ||
+        (status === 404 && error.config?.suppress404Toast)
+      );
+
+      if (!isSuppressed) {
+        console.error(`[API Error ${status}]:`, data);
+        toast.error(message);
+      }
 
       return Promise.reject({
         status,
@@ -58,12 +65,14 @@ api.interceptors.response.use(
     }
     
     // Network error
-    console.error('[API Network Error]:', error.message);
-    toast.error('Network error — please check your connection');
+    if (!error.config?.suppressErrorToast) {
+      console.error('[API Network Error]:', error.message);
+      toast.error('Network error — please check your connection');
+    }
     
     return Promise.reject({
       status: 0,
-      message: 'Network error — please check your connection',
+      message: error.message || 'Network error — please check your connection',
     });
   }
 );

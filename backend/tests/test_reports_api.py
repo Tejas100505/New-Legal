@@ -29,7 +29,11 @@ from app.services.case_scoping import get_case_scoped_document_ids
 async def init_test_db():
     db_session_module.AsyncSessionLocal = ReportsSessionLocal
     async with reports_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
+
+from app.models.user import User
 
 
 client = TestClient(app)
@@ -44,9 +48,39 @@ async def test_case_scoping_helper_and_report_export():
     user_stranger_id = str(uuid.uuid4())
     admin_id = str(uuid.uuid4())
 
-    token_owner = create_access_token(user_id=user_owner_id, email="owner@firm.com", role=UserRole.LAWYER)
-    token_stranger = create_access_token(user_id=user_stranger_id, email="stranger@firm.com", role=UserRole.LAWYER)
-    token_admin = create_access_token(user_id=admin_id, email="admin@corp.com", role=UserRole.ADMIN)
+    async with ReportsSessionLocal() as session:
+        session.add(User(
+            id=uuid.UUID(user_owner_id),
+            email="owner@firm.com",
+            hashed_password="pw",
+            full_name="Owner Lawyer",
+            role=UserRole.LAWYER,
+            is_active=True,
+            token_version=0,
+        ))
+        session.add(User(
+            id=uuid.UUID(user_stranger_id),
+            email="stranger@firm.com",
+            hashed_password="pw",
+            full_name="Stranger Lawyer",
+            role=UserRole.LAWYER,
+            is_active=True,
+            token_version=0,
+        ))
+        session.add(User(
+            id=uuid.UUID(admin_id),
+            email="admin@corp.com",
+            hashed_password="pw",
+            full_name="Admin",
+            role=UserRole.ADMIN,
+            is_active=True,
+            token_version=0,
+        ))
+        await session.commit()
+
+    token_owner = create_access_token(user_id=user_owner_id, email="owner@firm.com", role=UserRole.LAWYER, token_version=0)
+    token_stranger = create_access_token(user_id=user_stranger_id, email="stranger@firm.com", role=UserRole.LAWYER, token_version=0)
+    token_admin = create_access_token(user_id=admin_id, email="admin@corp.com", role=UserRole.ADMIN, token_version=0)
 
     headers_owner = {"Authorization": f"Bearer {token_owner}"}
     headers_stranger = {"Authorization": f"Bearer {token_stranger}"}

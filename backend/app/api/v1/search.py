@@ -161,13 +161,14 @@ async def hybrid_search(
 
     from app.services.orchestrator import record_agent_execution
     query_str = (data.query[:50] + '...') if len(data.query) > 50 else data.query
+    ret_conf = round(float(results[0]["confidence"]) * 100, 1) if (results and results[0].get("confidence") is not None) else None
     await record_agent_execution(
         db,
         "retrieval",
         str(uuid.uuid4()),
         "hybrid_search",
         ret_duration,
-        95.0,
+        ret_conf,
         0,
         "completed",
         f"Retrieved {len(results)} candidates for query: '{query_str}' in {ret_duration}ms.",

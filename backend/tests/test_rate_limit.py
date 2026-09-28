@@ -29,6 +29,7 @@ async def init_rate_db():
     limiter.reset()
     db_session_module.AsyncSessionLocal = RateSessionLocal
     async with rate_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 

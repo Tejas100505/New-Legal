@@ -226,12 +226,16 @@ export function AgentCard({
           <span className="text-[10px] text-slate-500">Conf.</span>
           <span className={cn(
             'text-[10px] font-mono ml-auto',
-            state.confidenceScore >= 90 ? 'text-emerald-400'
-              : state.confidenceScore >= 70 ? 'text-amber-400'
-              : state.confidenceScore > 0 ? 'text-red-400'
+            state.confidenceScore != null && state.confidenceScore >= 90 ? 'text-emerald-400'
+              : state.confidenceScore != null && state.confidenceScore >= 70 ? 'text-amber-400'
+              : state.confidenceScore != null && state.confidenceScore > 0 ? 'text-red-400'
               : 'text-slate-600'
           )}>
-            {state.confidenceScore > 0 ? `${state.confidenceScore}%` : '—'}
+            {state.status !== 'idle' && state.confidenceScore != null && state.confidenceScore > 0
+              ? `${state.confidenceScore}%`
+              : state.status !== 'idle' && state.confidenceScore === null
+              ? 'N/A'
+              : '—'}
           </span>
         </div>
 

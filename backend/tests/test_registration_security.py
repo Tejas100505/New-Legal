@@ -15,7 +15,13 @@ reg_engine = create_async_engine(TEST_DB_URL, echo=False)
 RegSessionLocal = async_sessionmaker(bind=reg_engine, class_=AsyncSession, expire_on_commit=False)
 
 import app.db.session as db_session_module
-db_session_module.AsyncSessionLocal = RegSessionLocal
+_orig_session_local = db_session_module.AsyncSessionLocal
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    db_session_module.AsyncSessionLocal = RegSessionLocal
+    yield
+    db_session_module.AsyncSessionLocal = _orig_session_local
 
 from app.main import app
 from app.db.base import Base
@@ -28,6 +34,7 @@ async def init_reg_db():
     limiter.reset()
     db_session_module.AsyncSessionLocal = RegSessionLocal
     async with reg_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 

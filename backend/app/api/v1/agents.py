@@ -16,7 +16,8 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,7 +114,8 @@ class AgentStatusResponse(BaseModel):
     status: str
     progress: int
     processing_time_ms: int = Field(alias="processingTimeMs")
-    confidence_score: float = Field(alias="confidenceScore")
+    confidence_score: Optional[float] = Field(None, alias="confidenceScore")
+    priority_score: Optional[float] = Field(None, alias="priorityScore")
     token_usage: int = Field(alias="tokenUsage")
     queue_position: int = Field(alias="queuePosition")
     last_execution_time: Optional[str] = Field(None, alias="lastExecutionTime")
@@ -126,25 +128,11 @@ class AgentStatusResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class PipelineStageResponse(BaseModel):
-    id: str
-    label: str
-    order: int
-    agent_ids: list[str] = Field(alias="agentIds")
-    status: str
-
-    model_config = {"populate_by_name": True}
-
-
-class PipelineStatusResponse(BaseModel):
-    case_id: str = Field(alias="caseId")
-    current_stage: str = Field(alias="currentStage")
-    stages: list[PipelineStageResponse]
-    overall_progress: int = Field(alias="overallProgress")
-    started_at: str = Field(alias="startedAt")
-    estimated_completion_at: Optional[str] = Field(None, alias="estimatedCompletionAt")
-
-    model_config = {"populate_by_name": True}
+from app.schemas.document import (
+    PipelineStageResponse,
+    PipelineStatusResponse,
+    DocumentPipelineStatusResponse,
+)
 
 
 class RetryResponse(BaseModel):
@@ -161,7 +149,8 @@ def _build_agent_status_from_logs(agent_id: str, logs: list[AuditLog]) -> AgentS
             status="idle",
             progress=0,
             processingTimeMs=0,
-            confidenceScore=0.0,
+            confidenceScore=None,
+            priorityScore=None,
             tokenUsage=0,
             queuePosition=0,
             lastExecutionTime=None,
@@ -176,7 +165,13 @@ def _build_agent_status_from_logs(agent_id: str, logs: list[AuditLog]) -> AgentS
     details = latest.details or {}
     duration = int(details.get("duration_ms", 0))
     token_usage = int(details.get("token_usage", 0))
-    confidence = float(details.get("confidence", 0.0))
+    
+    raw_confidence = details.get("confidence")
+    confidence = float(raw_confidence) if raw_confidence is not None else None
+    
+    raw_priority = details.get("priority_score")
+    priority_score = float(raw_priority) if raw_priority is not None else None
+
     is_failed = latest.action == "AGENT_EXECUTION_FAILED"
     status_str = "failed" if is_failed else "completed"
 
@@ -200,6 +195,7 @@ def _build_agent_status_from_logs(agent_id: str, logs: list[AuditLog]) -> AgentS
         progress=100 if not is_failed else 50,
         processingTimeMs=duration,
         confidenceScore=confidence,
+        priorityScore=priority_score,
         tokenUsage=token_usage,
         queuePosition=0,
         lastExecutionTime=latest.created_at.isoformat(),
@@ -327,73 +323,18 @@ async def get_agent_logs(
 
 @router.get("/pipeline", response_model=PipelineStatusResponse)
 async def get_pipeline_status(
+    document_id: Optional[uuid.UUID] = Query(None, alias="documentId"),
+    case_id: Optional[uuid.UUID] = Query(None, alias="caseId"),
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Get overall pipeline status based on real execution logs."""
-    stmt = (
-        select(AuditLog.resource_id)
-        .where(
-            AuditLog.resource_type == "agent",
-            AuditLog.action == "AGENT_EXECUTION_COMPLETED",
-        )
-        .distinct()
-    )
-    result = await db.execute(stmt)
-    completed_agent_ids = set(result.scalars().all())
-
-    stages = []
-    for stage_def in PIPELINE_STAGES:
-        agent_ids = stage_def["agent_ids"]
-        if not agent_ids:
-            s = "completed" if completed_agent_ids else "idle"
-        elif all(aid in completed_agent_ids for aid in agent_ids):
-            s = "completed"
-        elif any(aid in completed_agent_ids for aid in agent_ids):
-            s = "running"
-        else:
-            s = "idle"
-
-        stages.append(
-            PipelineStageResponse(
-                id=stage_def["id"],
-                label=stage_def["label"],
-                order=stage_def["order"],
-                agentIds=stage_def["agent_ids"],
-                status=s,
-            )
-        )
-
-    active_stages = [st for st in stages if st.status == "completed"]
-    overall_progress = int((len(active_stages) / len(stages)) * 100) if stages else 0
-
-    latest_log_stmt = (
-        select(AuditLog.created_at)
-        .where(AuditLog.resource_type == "agent")
-        .order_by(AuditLog.created_at.desc())
-        .limit(1)
-    )
-    latest_time_res = await db.execute(latest_log_stmt)
-    latest_time = latest_time_res.scalar()
-
-    earliest_log_stmt = (
-        select(AuditLog.created_at)
-        .where(AuditLog.resource_type == "agent")
-        .order_by(AuditLog.created_at.asc())
-        .limit(1)
-    )
-    earliest_time_res = await db.execute(earliest_log_stmt)
-    earliest_time = earliest_time_res.scalar()
-
-    now = datetime.now(timezone.utc)
-    started_at = (earliest_time or now).isoformat()
-    completed_at = (latest_time or now).isoformat() if overall_progress == 100 else None
-
-    return PipelineStatusResponse(
-        caseId="case_001",
-        currentStage=stages[-1].id if overall_progress == 100 else (next((s.id for s in stages if s.status != "completed"), "case_creation")),
-        stages=stages,
-        overallProgress=overall_progress,
-        startedAt=started_at,
-        estimatedCompletionAt=completed_at,
+    """
+    Get real, case-scoped, document-scoped pipeline status based on status_history and document state.
+    """
+    from app.services.status_history_service import get_pipeline_execution_status
+    return await get_pipeline_execution_status(
+        db=db,
+        current_user=current_user,
+        document_id=document_id,
+        case_id=case_id,
     )

@@ -73,13 +73,13 @@ export function AgentDetailModal({ agentId, state, isOpen, onClose, onRetry }: A
   const info = AGENT_REGISTRY[agentId];
   const statusCfg = statusLabels[state.status];
 
-  // Simulated performance chart data
+  // Performance chart data derived from real log metadata / agent state
   const perfData = state.logs
-    .filter((_l) => _l.level === 'info')
+    .filter((_l) => _l.level === 'info' && (_l.metadata?.duration_ms !== undefined || state.processingTimeMs > 0))
     .slice(-10)
     .map((_l, i) => ({
       name: `T${i + 1}`,
-      time: Math.round(state.processingTimeMs * (0.5 + Math.random() * 0.5) / 10),
+      time: _l.metadata?.duration_ms ? Number(_l.metadata.duration_ms) : state.processingTimeMs,
     }));
 
   const handleCopyLogs = () => {
@@ -160,7 +160,17 @@ export function AgentDetailModal({ agentId, state, isOpen, onClose, onRetry }: A
               {/* Metrics Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <MetricTile icon={<Timer className="h-4 w-4" />} label="Processing Time" value={formatDuration(state.processingTimeMs)} />
-                <MetricTile icon={<CheckCircle2 className="h-4 w-4" />} label="Confidence" value={state.confidenceScore > 0 ? `${state.confidenceScore}%` : '—'} />
+                <MetricTile
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                  label="Confidence"
+                  value={
+                    state.status !== 'idle' && state.confidenceScore != null && state.confidenceScore > 0
+                      ? `${state.confidenceScore}%`
+                      : state.status !== 'idle' && state.confidenceScore === null
+                      ? 'N/A'
+                      : '—'
+                  }
+                />
                 <MetricTile icon={<Zap className="h-4 w-4" />} label="Token Usage" value={formatTokens(state.tokenUsage)} />
                 <MetricTile icon={<Hash className="h-4 w-4" />} label="Queue Position" value={state.queuePosition > 0 ? `#${state.queuePosition}` : '—'} />
                 <MetricTile icon={<Clock className="h-4 w-4" />} label="Started At" value={state.startedAt ? new Date(state.startedAt).toLocaleTimeString() : '—'} />

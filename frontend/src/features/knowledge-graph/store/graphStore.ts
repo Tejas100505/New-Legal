@@ -17,7 +17,7 @@ interface GraphState {
   highlightedNeighbors: string[];
   
   // Actions
-  fetchGraph: () => Promise<void>;
+  fetchGraph: (caseId?: string) => Promise<void>;
   setNodes: (nodes: Node[]) => void;
   setEdges: (edges: Edge[]) => void;
   selectNode: (nodeId: string | null) => void;
@@ -66,9 +66,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   shortestPath: null,
   highlightedNeighbors: [],
 
-  fetchGraph: async () => {
+  fetchGraph: async (caseId?: string) => {
     try {
-      const response = await api.get('/graph');
+      const activeCaseId = caseId !== undefined ? caseId : get().filters.caseId;
+      const params: Record<string, string> = {};
+      if (activeCaseId) {
+        params.caseId = activeCaseId;
+      }
+      const response = await api.get('/graph', { params });
       const rawNodesList = response.data.nodes || [];
       const rawLinksList = response.data.links || response.data.edges || [];
 

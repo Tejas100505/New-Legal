@@ -120,18 +120,45 @@ def reset_limiter_and_tracker():
     reset_case_summary_llm_call_count()
 
 
+from app.models.user import User
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+async def get_or_create_user_token(session: AsyncSession, user_id: str, email: str, role: UserRole = UserRole.LAWYER) -> tuple[str, str]:
+    user_uuid = uuid.UUID(user_id) if user_id else uuid.uuid4()
+    stmt = select(User).where((User.id == user_uuid) | (User.email == email))
+    result = await session.execute(stmt)
+    user = result.scalars().first()
+    if not user:
+        user = User(
+            id=user_uuid,
+            email=email,
+            hashed_password="pw",
+            full_name=f"User {email}",
+            role=role,
+            is_active=True,
+            token_version=0,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    token = create_access_token(user_id=str(user.id), email=user.email, role=user.role, token_version=user.token_version)
+    return str(user.id), token
+
+
 async def create_fixture_case(session: AsyncSession, creator_sub: str, name: str = "Test Case") -> Case:
+    actual_sub, _ = await get_or_create_user_token(session, creator_sub, f"user_{creator_sub[:6]}@law.com", UserRole.LAWYER)
     case = Case(
         id=uuid.uuid4(),
         name=f"{name} {uuid.uuid4().hex[:6]}",
         case_number=f"CASE-{uuid.uuid4().hex[:6].upper()}",
         status=CaseStatus.IN_PROGRESS,
         priority=CasePriority.MEDIUM,
-        created_by=creator_sub,
+        created_by=actual_sub,
     )
     session.add(case)
     await session.commit()
@@ -187,9 +214,9 @@ async def test_summary_generate_stranger_403():
         owner_sub = str(uuid.uuid4())
         stranger_sub = str(uuid.uuid4())
         case = await create_fixture_case(session, owner_sub, "Owner Secret Case")
+        _, token_stranger = await get_or_create_user_token(session, stranger_sub, f"stranger_{stranger_sub[:6]}@law.com", UserRole.LAWYER)
         await create_fixture_doc(session, case.id)
 
-    token_stranger = create_access_token(user_id=stranger_sub, email="stranger@law.com", role=UserRole.LAWYER)
     resp = client.post(
         f"/api/v1/cases/{case.id}/summary/generate",
         headers={"Authorization": f"Bearer {token_stranger}"},
@@ -206,9 +233,9 @@ async def test_summary_generate_cross_case_403():
         user_b = str(uuid.uuid4())
         case_a = await create_fixture_case(session, user_a, "Case A")
         case_b = await create_fixture_case(session, user_b, "Case B")
+        _, token_a = await get_or_create_user_token(session, user_a, f"user_a_{user_a[:6]}@law.com", UserRole.LAWYER)
         await create_fixture_doc(session, case_b.id)
 
-    token_a = create_access_token(user_id=user_a, email="user_a@law.com", role=UserRole.LAWYER)
     resp = client.post(
         f"/api/v1/cases/{case_b.id}/summary/generate",
         headers={"Authorization": f"Bearer {token_a}"},
@@ -224,9 +251,8 @@ async def test_summary_generate_admin_override_ok():
         owner_sub = str(uuid.uuid4())
         admin_sub = str(uuid.uuid4())
         case = await create_fixture_case(session, owner_sub, "Admin Accessible Case")
+        _, token_admin = await get_or_create_user_token(session, admin_sub, f"admin_{admin_sub[:6]}@corp.com", UserRole.ADMIN)
         await create_fixture_doc(session, case.id)
-
-    token_admin = create_access_token(user_id=admin_sub, email="admin@corp.com", role=UserRole.ADMIN)
 
     with patch("app.services.case_intelligence_service.LLMClient.generate_text", new_callable=AsyncMock) as mock_llm:
         mock_payload = dict(MOCK_SUMMARY_PAYLOAD)
@@ -252,9 +278,9 @@ async def test_summary_get_stranger_403():
         owner_sub = str(uuid.uuid4())
         stranger_sub = str(uuid.uuid4())
         case = await create_fixture_case(session, owner_sub, "Stranger Read Case")
+        _, token_stranger = await get_or_create_user_token(session, stranger_sub, f"stranger_{stranger_sub[:6]}@law.com", UserRole.LAWYER)
         await create_fixture_doc(session, case.id)
 
-    token_stranger = create_access_token(user_id=stranger_sub, email="stranger@law.com", role=UserRole.LAWYER)
     resp = client.get(
         f"/api/v1/cases/{case.id}/summary",
         headers={"Authorization": f"Bearer {token_stranger}"},
@@ -271,8 +297,8 @@ async def test_summary_get_cross_case_403():
         user_b = str(uuid.uuid4())
         case_a = await create_fixture_case(session, user_a, "Case A")
         case_b = await create_fixture_case(session, user_b, "Case B")
+        _, token_a = await get_or_create_user_token(session, user_a, f"user_a_{user_a[:6]}@law.com", UserRole.LAWYER)
 
-    token_a = create_access_token(user_id=user_a, email="user_a@law.com", role=UserRole.LAWYER)
     resp = client.get(
         f"/api/v1/cases/{case_b.id}/summary",
         headers={"Authorization": f"Bearer {token_a}"},
@@ -581,7 +607,8 @@ async def test_concurrency_guard_returns_409_and_single_llm_execution():
         assert llm_call_count == 1
 
 
-def test_rate_limit_2_per_minute():
+@pytest.mark.asyncio
+async def test_rate_limit_2_per_minute():
     """
     Verify shared limiter limits /generate endpoint to 2/minute.
     With an unauthorized non-existent case_id and lawyer role, get_case_scoped_document_ids
@@ -592,7 +619,8 @@ def test_rate_limit_2_per_minute():
     ip = "192.168.200.15"
     test_client = TestClient(app, client=(ip, 50000))
     user_sub = str(uuid.uuid4())
-    token = create_access_token(user_id=user_sub, email="rl@law.com", role=UserRole.LAWYER)
+    async with TestSession() as session:
+        _, token = await get_or_create_user_token(session, user_sub, "rl@law.com", UserRole.LAWYER)
     headers = {"Authorization": f"Bearer {token}"}
 
     dummy_case_id = uuid.uuid4()
@@ -624,7 +652,14 @@ async def test_real_423_document_case_summary_generation_and_budget():
     """
     real_case_id = uuid.UUID("8d8389d4-2534-452d-85b4-65efe5b8e1c3")
     admin_sub = str(uuid.uuid4())
-    token_admin = create_access_token(user_id=admin_sub, email="admin@corp.com", role=UserRole.ADMIN)
+    async with TestSession() as session:
+        _, token_admin = await get_or_create_user_token(session, admin_sub, "admin@corp.com", UserRole.ADMIN)
+        repo = CaseSummaryRepository(session)
+        stuck = await repo.get_latest_by_case_id(real_case_id)
+        if stuck and stuck.status == CaseSummaryStatus.GENERATING:
+            stuck.status = CaseSummaryStatus.FAILED
+            stuck.error_message = "Reset by test harness"
+            await session.commit()
 
     reset_case_summary_llm_call_count()
 

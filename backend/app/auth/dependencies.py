@@ -18,6 +18,8 @@ from loguru import logger
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.db.session import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
 security = HTTPBearer(auto_error=False)
 
@@ -35,12 +37,14 @@ class TokenPayload(BaseModel):
     email: str | None = None
     role: UserRole = UserRole.CLIENT
     exp: datetime | None = None
+    token_version: int = 0
 
 
 def create_access_token(
     user_id: str,
     email: str | None = None,
     role: UserRole = UserRole.CLIENT,
+    token_version: int = 0,
 ) -> str:
     """Create a signed JWT access token (for the local auth provider)."""
     settings = get_settings()
@@ -52,6 +56,7 @@ def create_access_token(
         "email": email,
         "role": role.value,
         "exp": expires,
+        "token_version": token_version,
     }
     return jwt.encode(
         payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
@@ -74,6 +79,7 @@ def decode_token(token: str) -> TokenPayload:
             exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
             if "exp" in payload
             else None,
+            token_version=payload.get("token_version", 0),
         )
     except JWTError as e:
         raise HTTPException(
@@ -85,10 +91,12 @@ def decode_token(token: str) -> TokenPayload:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
 ) -> TokenPayload:
     """
     FastAPI dependency — extracts and validates the JWT from the
-    Authorization header. Returns the decoded token payload.
+    Authorization header, then performs a strict scalar DB lookup to
+    ensure the user exists, is active, and token_version matches.
     """
     if credentials is None:
         raise HTTPException(
@@ -96,7 +104,49 @@ async def get_current_user(
             detail="Missing authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return decode_token(credentials.credentials)
+    payload = decode_token(credentials.credentials)
+
+    import uuid
+    from sqlalchemy import select
+    from app.models.user import User
+
+    try:
+        user_uuid = uuid.UUID(payload.sub)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user identifier in token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    stmt = select(User.token_version, User.is_active).where(User.id == user_uuid)
+    result = await db.execute(stmt)
+    user_row = result.first()
+
+    if user_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    db_token_version, is_active = user_row
+
+    if not is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.token_version != db_token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload
 
 
 def require_role(*roles: UserRole):

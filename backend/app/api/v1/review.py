@@ -136,7 +136,7 @@ async def run_review(
             doc_id_str,
             "document_review",
             pii_duration,
-            98.0,
+            None,
             0,
             "completed",
             f"PII scan complete: {len(pii_result.entities_found)} entities detected in {pii_duration}ms.",
@@ -216,8 +216,15 @@ async def run_review(
             "timeline": doc_res_data["timeline"],
         })
         doc.doc_metadata = doc_metadata
-        doc.status = DocumentStatus.REVIEWED
-        await service._repo.update(doc.id, doc_metadata=doc_metadata, status=DocumentStatus.REVIEWED)
+        from app.services.status_history_service import record_status_transition
+        await record_status_transition(
+            db,
+            doc,
+            DocumentStatus.REVIEWED,
+            changed_by=current_user.sub,
+            reason="case_review_pipeline_completed",
+        )
+        await service._repo.update(doc.id, doc_metadata=doc_metadata)
 
         # Record metrics to evaluation_metrics table
         latency_ms = (time.perf_counter() - doc_start) * 1000
@@ -285,7 +292,7 @@ async def generate_report(
         str(request.document_id),
         "case_report",
         rep_duration,
-        95.0,
+        None,
         0,
         "completed",
         f"Report generated in {request.format} format in {rep_duration}ms.",

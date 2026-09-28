@@ -34,7 +34,11 @@ const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' 
   quota_paused: { variant: 'warning', label: 'Quota Paused' },
 };
 
-export function DocumentsPage() {
+interface DocumentsPageProps {
+  caseId?: string;
+}
+
+export function DocumentsPage({ caseId }: DocumentsPageProps = {}) {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -99,7 +103,9 @@ export function DocumentsPage() {
   const fetchDocuments = useCallback(async () => {
     try {
       setLoadingDocs(true);
-      const response = await api.get('/documents');
+      const params: Record<string, string> = {};
+      if (caseId) params.case_id = caseId;
+      const response = await api.get('/documents', { params });
       const docs = response.data.documents.map(mapDocResponse);
       setDocuments(docs);
     } catch (err) {
@@ -108,7 +114,7 @@ export function DocumentsPage() {
     } finally {
       setLoadingDocs(false);
     }
-  }, []);
+  }, [caseId]);
 
   useEffect(() => {
     fetchDocuments();
@@ -125,7 +131,9 @@ export function DocumentsPage() {
 
     const interval = setInterval(async () => {
       try {
-        const response = await api.get('/documents');
+        const params: Record<string, string> = {};
+        if (caseId) params.case_id = caseId;
+        const response = await api.get('/documents', { params });
         const rawDocs = response.data.documents || [];
         const mapped = rawDocs.map(mapDocResponse);
         setDocuments(mapped);
@@ -156,7 +164,7 @@ export function DocumentsPage() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [documents, uploadFiles]);
+  }, [documents, uploadFiles, caseId]);
 
   const allTags = [...new Set(documents.flatMap((d) => d.tags))];
 
@@ -188,6 +196,78 @@ export function DocumentsPage() {
     
     const currentLength = uploadFiles.length;
 
+    if (files.length > 1) {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const uploadUrl = caseId
+        ? `/documents/upload-multiple?case_id=${encodeURIComponent(caseId)}`
+        : '/documents/upload-multiple';
+
+      try {
+        const uploadRes = await api.post<any[]>(uploadUrl, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadFiles((prev) =>
+                prev.map((f, i) =>
+                  i >= currentLength && i < currentLength + files.length
+                    ? { ...f, progress: percentCompleted }
+                    : f
+                )
+              );
+            }
+          },
+        });
+
+        const uploadedDocs = Array.isArray(uploadRes.data) ? uploadRes.data : [];
+        setUploadFiles((prev) =>
+          prev.map((f, i) => {
+            if (i >= currentLength && i < currentLength + files.length) {
+              const fileIdx = i - currentLength;
+              const originalFile = files[fileIdx];
+              const match =
+                uploadedDocs.find((d: any) => d.original_filename === originalFile?.name) ||
+                uploadedDocs[fileIdx];
+
+              if (match && match.id) {
+                return {
+                  ...f,
+                  progress: 100,
+                  status: 'processing',
+                  docId: match.id,
+                  message: 'File stored. Running 10-stage AI legal review (typically 30–60s)...',
+                };
+              } else {
+                return {
+                  ...f,
+                  status: 'error',
+                  message: 'Upload failed or rejected by storage service.',
+                };
+              }
+            }
+            return f;
+          })
+        );
+
+        fetchDocuments();
+      } catch (err) {
+        console.error('Batch upload failed', err);
+        setUploadFiles((prev) =>
+          prev.map((f, i) =>
+            i >= currentLength && i < currentLength + files.length
+              ? { ...f, status: 'error', message: 'Batch upload failed. Please check file format and connection.' }
+              : f
+          )
+        );
+      }
+      return;
+    }
+
+    // Single-file upload fallback
     for (let idx = 0; idx < files.length; idx++) {
       const file = files[idx];
       const totalIdx = currentLength + idx;
@@ -196,7 +276,8 @@ export function DocumentsPage() {
       formData.append('file', file);
       
       try {
-        const uploadRes = await api.post('/documents/upload', formData, {
+        const uploadUrl = caseId ? `/documents/upload?case_id=${encodeURIComponent(caseId)}` : '/documents/upload';
+        const uploadRes = await api.post(uploadUrl, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
@@ -225,7 +306,6 @@ export function DocumentsPage() {
           )
         );
         
-        // Refresh the document list to show the newly added processing doc
         fetchDocuments();
         
       } catch (err) {
@@ -245,6 +325,7 @@ export function DocumentsPage() {
       actions={
         <div className="flex items-center gap-2">
           <button
+            id="documents-upload-button"
             onClick={() => setShowUpload(!showUpload)}
             className={cn(
               'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium',

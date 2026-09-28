@@ -124,6 +124,16 @@ class DocumentService:
             }
         )
 
+        from app.services.status_history_service import record_status_transition
+        await record_status_transition(
+            self._repo._session,
+            document,
+            DocumentStatus.UPLOADED,
+            changed_by=uploaded_by,
+            reason="initial_document_upload",
+            old_status=None,
+        )
+
         from app.services.orchestrator import record_agent_execution
         ingest_conf = round(agent_output.confidence_score * 100, 1) if agent_output.confidence_score <= 1.0 else agent_output.confidence_score
         await record_agent_execution(

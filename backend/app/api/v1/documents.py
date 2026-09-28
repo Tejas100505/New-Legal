@@ -36,6 +36,12 @@ from app.schemas.document import (
     HumanOverrideRequest,
     OverrideField,
     OverrideAction,
+    StatusHistoryResponse,
+    PipelineStatusResponse,
+)
+from app.services.status_history_service import (
+    record_status_transition,
+    get_pipeline_execution_status,
 )
 from app.services.document_service import DocumentService
 from app.auth.dependencies import get_current_user, require_role, TokenPayload, UserRole
@@ -275,10 +281,19 @@ async def update_document(
     
     if "status" in payload:
         new_status = payload["status"]
+        target_status = None
         if hasattr(DocumentStatus, new_status.upper()):
-            doc.status = getattr(DocumentStatus, new_status.upper())
+            target_status = getattr(DocumentStatus, new_status.upper())
         elif new_status in [s.value for s in DocumentStatus]:
-            doc.status = DocumentStatus(new_status)
+            target_status = DocumentStatus(new_status)
+        if target_status:
+            await record_status_transition(
+                db,
+                doc,
+                target_status,
+                changed_by=current_user.sub,
+                reason="manual_update_via_patch",
+            )
 
     audit_log = AuditLog(
         user_email=current_user.email or f"user:{current_user.sub}",
@@ -363,7 +378,13 @@ async def override_document_review(
         doc_metadata["confidentiality"] = data.override_value
 
     if data.new_status:
-        doc.status = data.new_status
+        await record_status_transition(
+            db,
+            doc,
+            data.new_status,
+            changed_by=current_user.sub,
+            reason=f"human_review_{data.action.value}:{data.field.value}",
+        )
 
     doc.doc_metadata = doc_metadata
 
@@ -531,7 +552,13 @@ async def retry_document_pipeline(
     ]
 
     # Reset status to VALIDATING to reflect active re-entry into pipeline
-    doc.status = DocumentStatus.VALIDATING
+    await record_status_transition(
+        db,
+        doc,
+        DocumentStatus.VALIDATING,
+        changed_by=current_user.sub,
+        reason="retry_requested",
+    )
     meta["retry_initiated_at"] = datetime.now(timezone.utc).isoformat()
     meta["retry_initiated_by"] = current_user.sub or current_user.email
     meta["retry_available"] = False
@@ -555,4 +582,60 @@ async def retry_document_pipeline(
     background_tasks.add_task(run_document_pipeline, str(doc.id))
 
     return DocumentResponse.model_validate(doc)
+
+
+@router.get(
+    "/{document_id}/status-history",
+    response_model=list[StatusHistoryResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get document status history",
+)
+async def get_document_status_history(
+    document_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+) -> list[StatusHistoryResponse]:
+    """Retrieve the full, chronologically ordered status transition audit trail for a document."""
+    from sqlalchemy import select
+    from app.models.document import Document
+    from app.models.status_history import StatusHistory
+
+    doc = await db.get(Document, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document {document_id} not found.",
+        )
+    await check_document_access(doc, current_user, db)
+
+    stmt = (
+        select(StatusHistory)
+        .where(StatusHistory.document_id == document_id)
+        .order_by(StatusHistory.changed_at.asc(), StatusHistory.created_at.asc())
+    )
+    result = await db.execute(stmt)
+    entries = result.scalars().all()
+    return [StatusHistoryResponse.model_validate(e) for e in entries]
+
+
+@router.get(
+    "/{document_id}/pipeline-status",
+    response_model=PipelineStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get document pipeline execution status",
+)
+async def get_document_pipeline_status(
+    document_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+) -> PipelineStatusResponse:
+    """
+    Retrieve real, case-scoped, document-scoped pipeline execution status backed by status_history.
+    """
+    return await get_pipeline_execution_status(
+        db=db,
+        current_user=current_user,
+        document_id=document_id,
+    )
+
 

@@ -67,6 +67,9 @@ class PlainTextEngine(BaseOCREngine):
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
 
+            if not text or not text.strip():
+                raise OCREngineException(f"PlainText direct read failed: File '{os.path.basename(file_path)}' is empty")
+
             logger.info(f"[PlainTextEngine] Successfully read {len(text)} characters directly")
             return OCREngineResult(
                 text=text,
@@ -77,6 +80,8 @@ class PlainTextEngine(BaseOCREngine):
                 reading_order=[]
             )
         except Exception as e:
+            if isinstance(e, OCREngineException):
+                raise e
             raise OCREngineException(f"PlainText direct read failed: {e}")
 
 
@@ -275,7 +280,15 @@ class HeuristicFallbackEngine(BaseOCREngine):
         logger.info(f"[HeuristicFallbackEngine] Running fallback logic for {file_path}")
         # As a final fallback, attempt to read plain text content from disk if present.
         filename = os.path.basename(file_path)
-        
+        ext = os.path.splitext(file_path)[1].lower()
+
+        # Reject binary, scanned, or non-text document formats to prevent reading binary stream garbage as text
+        binary_extensions = [".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".bin", ".zip", ".exe", ".docx", ".xlsx"]
+        if ext in binary_extensions:
+            raise OCREngineException(
+                f"Heuristic fallback failed: Cannot extract text from binary or scanned format '{ext}' in '{filename}'"
+            )
+
         # Heuristic based on file contents
         content = ""
         if os.path.exists(file_path):

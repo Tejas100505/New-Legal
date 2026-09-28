@@ -78,6 +78,12 @@ class Document(Base):
 
     # Relationships
     case = relationship("Case", back_populates="documents")
+    status_history = relationship(
+        "StatusHistory",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="StatusHistory.changed_at.asc()",
+    )
 
     def __repr__(self) -> str:
         return (

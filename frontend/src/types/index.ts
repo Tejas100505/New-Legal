@@ -631,7 +631,7 @@ export interface AgentState {
   status: AgentStatus;
   progress: number;
   processingTimeMs: number;
-  confidenceScore: number;
+  confidenceScore: number | null;
   tokenUsage: number;
   queuePosition: number;
   lastExecutionTime: string | null;
@@ -730,7 +730,7 @@ export interface AgentUpdatePayload {
   status: AgentStatus;
   progress: number;
   processingTimeMs: number;
-  confidenceScore: number;
+  confidenceScore: number | null;
   tokenUsage: number;
   queuePosition: number;
   logEntry?: AgentLogEntry;

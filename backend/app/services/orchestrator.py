@@ -8,6 +8,7 @@ import os
 import time
 import uuid
 import asyncio
+from typing import Optional, Any, Dict
 from datetime import datetime, timezone
 from loguru import logger
 from sqlalchemy import delete
@@ -33,6 +34,7 @@ from app.agents.risk import RiskAgent, RiskInput
 from app.agents.review import ReviewAgent, ReviewInput
 from app.agents.triage import TriageOrchestratorAgent, TriageInput
 from app.agents.gemini_client import is_quota_error, QuotaExhaustedException
+from app.services.status_history_service import record_status_transition
 
 
 async def _send_agent_update(
@@ -40,28 +42,33 @@ async def _send_agent_update(
     status: str,
     progress: int,
     message: str,
-    confidence: float = 0.0,
+    confidence: Optional[float] = None,
     processing_time_ms: int = 0,
     token_usage: int = 0,
     target_user_id: str | None = None,
+    priority_score: Optional[float] = None,
 ):
+    payload = {
+        "agentId": agent_id,
+        "status": status,
+        "progress": progress,
+        "processingTimeMs": processing_time_ms,
+        "confidenceScore": confidence,
+        "tokenUsage": token_usage,
+        "queuePosition": 0,
+        "logEntry": {
+            "id": f"log_{agent_id}_{int(datetime.now(timezone.utc).timestamp())}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": "info" if status != "failed" else "error",
+            "message": message,
+        },
+    }
+    if priority_score is not None:
+        payload["priorityScore"] = priority_score
+
     update = {
         "type": "agent_update",
-        "payload": {
-            "agentId": agent_id,
-            "status": status,
-            "progress": progress,
-            "processingTimeMs": processing_time_ms,
-            "confidenceScore": confidence,
-            "tokenUsage": token_usage,
-            "queuePosition": 0,
-            "logEntry": {
-                "id": f"log_{agent_id}_{int(datetime.now(timezone.utc).timestamp())}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "level": "info" if status != "failed" else "error",
-                "message": message,
-            },
-        },
+        "payload": payload,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await manager.broadcast(update, target_user_id=target_user_id)
@@ -73,27 +80,32 @@ async def record_agent_execution(
     doc_id: str,
     filename: str,
     duration_ms: int,
-    confidence: float,
+    confidence: Optional[float],
     token_usage: int,
     status: str,
     message: str,
     auto_commit: bool = False,
+    priority_score: Optional[float] = None,
 ):
     """Persist real per-agent execution metrics to AuditLog."""
+    details: Dict[str, Any] = {
+        "document_id": doc_id,
+        "filename": filename,
+        "duration_ms": duration_ms,
+        "confidence": round(float(confidence), 1) if confidence is not None else None,
+        "token_usage": token_usage,
+        "status": status,
+        "message": message,
+    }
+    if priority_score is not None:
+        details["priority_score"] = round(float(priority_score), 1)
+
     audit_log = AuditLog(
         user_email="pipeline@system.local",
         action="AGENT_EXECUTION_COMPLETED" if status == "completed" else "AGENT_EXECUTION_FAILED",
         resource_type="agent",
         resource_id=agent_id,
-        details={
-            "document_id": doc_id,
-            "filename": filename,
-            "duration_ms": duration_ms,
-            "confidence": round(float(confidence), 1),
-            "token_usage": token_usage,
-            "status": status,
-            "message": message,
-        },
+        details=details,
     )
     session.add(audit_log)
     if auto_commit:
@@ -127,9 +139,13 @@ async def _handle_quota_pause(
         f"Processing paused until quota resets or retry is initiated."
     )
     meta["retry_available"] = True
-    
-    doc.status = DocumentStatus.QUOTA_PAUSED
     doc.doc_metadata = meta
+    await record_status_transition(
+        session,
+        doc,
+        DocumentStatus.QUOTA_PAUSED,
+        reason=f"quota_exhausted_at_{stage_name}",
+    )
     
     msg = f"AI processing paused: daily LLM quota reached at {stage_name} stage. Upstream results preserved."
     await _send_agent_update(stage_name, "failed", 50, msg, processing_time_ms=duration_ms)
@@ -179,21 +195,26 @@ async def run_document_pipeline(document_id: str):
         if pipeline_data.get("ocr", {}).get("status") == "completed" and doc.extracted_text:
             logger.info(f"Resuming pipeline: Skipping OCR stage for document {doc.id} (valid text already present: {len(doc.extracted_text)} chars)")
             ocr_duration = pipeline_data["ocr"].get("duration_ms", 10)
-            await _send_agent_update("ocr", "completed", 100, f"Text ready (preserved): {len(doc.extracted_text)} chars.", confidence=100.0, processing_time_ms=ocr_duration)
+            await _send_agent_update("ocr", "completed", 100, f"Text ready (preserved): {len(doc.extracted_text)} chars.", confidence=pipeline_data.get("ocr", {}).get("confidence"), processing_time_ms=ocr_duration)
         elif doc.extracted_text and not doc.storage_path:
             ocr_duration = max(1, int((time.perf_counter() - t_ocr) * 1000))
             pipeline_data["ocr"] = {
                 "text_length": len(doc.extracted_text),
-                "confidence": 1.0,
+                "confidence": None,
                 "status": "completed",
                 "duration_ms": ocr_duration,
             }
-            msg = f"Text ready: {len(doc.extracted_text)} chars."
-            await _send_agent_update("ocr", "completed", 100, msg, confidence=100.0, processing_time_ms=ocr_duration)
-            await _record_agent_execution(session, "ocr", str(doc.id), doc.original_filename, ocr_duration, 100.0, 0, "completed", msg)
+            msg = f"Text ready (direct input): {len(doc.extracted_text)} chars."
+            await _send_agent_update("ocr", "completed", 100, msg, confidence=None, processing_time_ms=ocr_duration)
+            await _record_agent_execution(session, "ocr", str(doc.id), doc.original_filename, ocr_duration, None, 0, "completed", msg)
         else:
             await _send_agent_update("ocr", "running", 10, "Extracting text and structure...")
-            doc.status = DocumentStatus.OCR_PROCESSING
+            await record_status_transition(
+                session,
+                doc,
+                DocumentStatus.OCR_PROCESSING,
+                reason="pipeline_stage_ocr",
+            )
             await session.commit()
 
             from app.services.storage_service import get_storage_service
@@ -208,6 +229,10 @@ async def run_document_pipeline(document_id: str):
                         page_number=1
                     )
                     ocr_result = await ocr_agent.run(ocr_input)
+                if not ocr_result.text or not ocr_result.text.strip():
+                    raise AgentException(
+                        f"All OCR engines failed for '{doc.original_filename}': OCR returned empty text."
+                    )
                 ocr_duration = max(1, int((time.perf_counter() - t_ocr) * 1000))
                 doc.extracted_text = ocr_result.text
                 doc.page_count = getattr(ocr_result, "page_count", 1) or 1
@@ -229,9 +254,16 @@ async def run_document_pipeline(document_id: str):
                 logger.error(f"OCR stage failed: {e}")
                 await _send_agent_update("ocr", "failed", 50, f"OCR Failed: {str(e)}", processing_time_ms=ocr_duration)
                 await _record_agent_execution(session, "ocr", str(doc.id), doc.original_filename, ocr_duration, 0.0, 0, "failed", f"OCR Failed: {e}")
-                doc.status = DocumentStatus.ERROR
                 meta["pipeline_error"] = f"OCR Error: {e}"
                 doc.doc_metadata = meta
+                err_text = str(e).lower()
+                reason_str = "ocr_extraction_failed_both_engines" if "all ocr engines failed" in err_text else f"pipeline_stage_ocr_error: {str(e)[:160]}"
+                await record_status_transition(
+                    session,
+                    doc,
+                    DocumentStatus.ERROR,
+                    reason=reason_str,
+                )
                 await session.commit()
                 return
 
@@ -282,12 +314,17 @@ async def run_document_pipeline(document_id: str):
         if pipeline_data.get("embedding", {}).get("status") == "completed" and pipeline_data.get("chunking", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Chunking & Embedding stages for document {doc.id} (vectors and chunks already indexed)")
             skip_chunk_embed = True
-            await _send_agent_update("chunking", "completed", 100, "Chunking ready (preserved).", confidence=100.0, processing_time_ms=10)
-            await _send_agent_update("embedding", "completed", 100, "Vector storage ready (preserved).", confidence=100.0, processing_time_ms=10)
+            await _send_agent_update("chunking", "completed", 100, "Chunking ready (preserved).", confidence=None, processing_time_ms=10)
+            await _send_agent_update("embedding", "completed", 100, "Vector storage ready (preserved).", confidence=None, processing_time_ms=10)
 
         if not skip_chunk_embed:
             await _send_agent_update("chunking", "running", 35, "Segmenting text into semantic chunks...")
-            doc.status = DocumentStatus.CHUNKING
+            await record_status_transition(
+                session,
+                doc,
+                DocumentStatus.CHUNKING,
+                reason="pipeline_stage_chunking",
+            )
             await session.commit()
 
             chunk_agent = ChunkingAgent()
@@ -308,8 +345,8 @@ async def run_document_pipeline(document_id: str):
                     "duration_ms": chunk_duration,
                 }
                 msg = f"Chunking complete: {len(chunks_data)} chunks created in {chunk_duration}ms."
-                await _send_agent_update("chunking", "completed", 100, msg, confidence=100.0, processing_time_ms=chunk_duration)
-                await _record_agent_execution(session, "chunking", str(doc.id), doc.original_filename, chunk_duration, 100.0, 0, "completed", msg)
+                await _send_agent_update("chunking", "completed", 100, msg, confidence=None, processing_time_ms=chunk_duration)
+                await _record_agent_execution(session, "chunking", str(doc.id), doc.original_filename, chunk_duration, None, 0, "completed", msg)
             except Exception as e:
                 chunk_duration = max(1, int((time.perf_counter() - t_chunk) * 1000))
                 if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
@@ -322,7 +359,12 @@ async def run_document_pipeline(document_id: str):
 
             # ── STAGE 4: EMBEDDING & VECTOR STORAGE ──────────────────────────
             await _send_agent_update("embedding", "running", 50, "Generating 1024-d embeddings & storing in pgvector...")
-            doc.status = DocumentStatus.EMBEDDING
+            await record_status_transition(
+                session,
+                doc,
+                DocumentStatus.EMBEDDING,
+                reason="pipeline_stage_embedding",
+            )
             await session.commit()
 
             if chunks_data:
@@ -373,8 +415,8 @@ async def run_document_pipeline(document_id: str):
                         "duration_ms": embed_duration,
                     }
                     msg = f"Vector storage complete: {len(embedded_chunks)} vectors indexed in {embed_duration}ms."
-                    await _send_agent_update("embedding", "completed", 100, msg, confidence=100.0, processing_time_ms=embed_duration)
-                    await _record_agent_execution(session, "embedding", str(doc.id), doc.original_filename, embed_duration, 100.0, 0, "completed", msg)
+                    await _send_agent_update("embedding", "completed", 100, msg, confidence=None, processing_time_ms=embed_duration)
+                    await _record_agent_execution(session, "embedding", str(doc.id), doc.original_filename, embed_duration, None, 0, "completed", msg)
                 except Exception as e:
                     embed_duration = max(1, int((time.perf_counter() - t_embed) * 1000))
                     if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
@@ -389,10 +431,15 @@ async def run_document_pipeline(document_id: str):
         if entities_dict and pipeline_data.get("entity_extraction", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Entity Extraction for document {doc.id} (valid entities preserved)")
             ent_count = sum(len(v) for v in entities_dict.values())
-            await _send_agent_update("entity_extraction", "completed", 100, f"Entities ready (preserved): {ent_count} entities.", confidence=95.0, processing_time_ms=10)
+            await _send_agent_update("entity_extraction", "completed", 100, f"Entities ready (preserved): {ent_count} entities.", confidence=None, processing_time_ms=10)
         else:
             await _send_agent_update("entity_extraction", "running", 65, "Extracting legal entities and network relationships...")
-            doc.status = DocumentStatus.ANALYZING
+            await record_status_transition(
+                session,
+                doc,
+                DocumentStatus.ANALYZING,
+                reason="pipeline_stage_analyzing",
+            )
             await session.commit()
 
             entity_agent = EntityExtractionAgent()
@@ -417,8 +464,8 @@ async def run_document_pipeline(document_id: str):
                 pipeline_data["entity_extraction"] = {"status": "completed", "duration_ms": ent_duration}
                 ent_count = sum(len(v) for v in entities_dict.values())
                 msg = f"Extracted {ent_count} entities in {ent_duration}ms."
-                await _send_agent_update("entity_extraction", "completed", 100, msg, confidence=95.0, processing_time_ms=ent_duration)
-                await _record_agent_execution(session, "entity_extraction", str(doc.id), doc.original_filename, ent_duration, 95.0, 0, "completed", msg)
+                await _send_agent_update("entity_extraction", "completed", 100, msg, confidence=None, processing_time_ms=ent_duration)
+                await _record_agent_execution(session, "entity_extraction", str(doc.id), doc.original_filename, ent_duration, None, 0, "completed", msg)
             except Exception as e:
                 ent_duration = max(1, int((time.perf_counter() - t_ent) * 1000))
                 if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
@@ -432,7 +479,7 @@ async def run_document_pipeline(document_id: str):
         if meta.get("graph") and pipeline_data.get("relationship_extraction", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Relationship Extraction for document {doc.id} (valid graph preserved)")
             edge_count = len(meta["graph"].get("edges", [])) if isinstance(meta["graph"], dict) else 0
-            await _send_agent_update("relationship_extraction", "completed", 100, f"Knowledge graph ready (preserved): {edge_count} relationships.", confidence=92.0, processing_time_ms=10)
+            await _send_agent_update("relationship_extraction", "completed", 100, f"Knowledge graph ready (preserved): {edge_count} relationships.", confidence=None, processing_time_ms=10)
         else:
             rel_agent = RelationshipAgent()
             rel_input = RelationshipInput(document_id=str(doc.id), entities=entities_dict)
@@ -444,10 +491,10 @@ async def run_document_pipeline(document_id: str):
                 pipeline_data["relationship_extraction"] = {"status": "completed", "duration_ms": rel_duration}
                 edge_count = len(rel_result.graph_data.get("edges", [])) if hasattr(rel_result, "graph_data") and isinstance(rel_result.graph_data, dict) else 0
                 msg = f"Extracted {edge_count} relationships in {rel_duration}ms."
-                await _send_agent_update("relationship_extraction", "completed", 100, msg, confidence=92.0, processing_time_ms=rel_duration)
-                await _record_agent_execution(session, "relationship_extraction", str(doc.id), doc.original_filename, rel_duration, 92.0, 0, "completed", msg)
-                await _record_agent_execution(session, "relationship", str(doc.id), doc.original_filename, rel_duration, 92.0, 0, "completed", msg)
-                await _record_agent_execution(session, "knowledge_graph", str(doc.id), doc.original_filename, rel_duration, 94.0, 0, "completed", f"Knowledge graph synchronized with {edge_count} relationships in {rel_duration}ms.")
+                await _send_agent_update("relationship_extraction", "completed", 100, msg, confidence=None, processing_time_ms=rel_duration)
+                await _record_agent_execution(session, "relationship_extraction", str(doc.id), doc.original_filename, rel_duration, None, 0, "completed", msg)
+                await _record_agent_execution(session, "relationship", str(doc.id), doc.original_filename, rel_duration, None, 0, "completed", msg)
+                await _record_agent_execution(session, "knowledge_graph", str(doc.id), doc.original_filename, rel_duration, None, 0, "completed", f"Knowledge graph synchronized with {edge_count} relationships in {rel_duration}ms.")
             except Exception as e:
                 rel_duration = max(1, int((time.perf_counter() - t_rel) * 1000))
                 if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
@@ -461,7 +508,7 @@ async def run_document_pipeline(document_id: str):
         # ── STAGE 6: TIMELINE GENERATION ─────────────────────────────────────
         if meta.get("timeline") and pipeline_data.get("timeline", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Timeline stage for document {doc.id} (valid timeline preserved: {len(meta.get('timeline'))} events)")
-            await _send_agent_update("timeline", "completed", 100, f"Timeline ready (preserved): {len(meta.get('timeline'))} events.", confidence=90.0, processing_time_ms=10)
+            await _send_agent_update("timeline", "completed", 100, f"Timeline ready (preserved): {len(meta.get('timeline'))} events.", confidence=pipeline_data.get("timeline", {}).get("confidence"), processing_time_ms=10)
         else:
             await _send_agent_update("timeline", "running", 75, "Constructing chronological event timeline...")
             timeline_agent = TimelineAgent()
@@ -474,10 +521,11 @@ async def run_document_pipeline(document_id: str):
                     {"date": ev.date, "description": ev.description, "confidence": ev.confidence}
                     for ev in tl_result.timeline
                 ]
-                pipeline_data["timeline"] = {"status": "completed", "duration_ms": tl_duration}
+                tl_conf = round(tl_result.confidence_score * 100, 1) if tl_result.confidence_score <= 1.0 else round(tl_result.confidence_score, 1)
+                pipeline_data["timeline"] = {"status": "completed", "duration_ms": tl_duration, "confidence": tl_conf}
                 msg = f"Timeline complete: {len(tl_result.timeline)} events extracted in {tl_duration}ms."
-                await _send_agent_update("timeline", "completed", 100, msg, confidence=90.0, processing_time_ms=tl_duration)
-                await _record_agent_execution(session, "timeline", str(doc.id), doc.original_filename, tl_duration, 90.0, 0, "completed", msg)
+                await _send_agent_update("timeline", "completed", 100, msg, confidence=tl_conf, processing_time_ms=tl_duration)
+                await _record_agent_execution(session, "timeline", str(doc.id), doc.original_filename, tl_duration, tl_conf, 0, "completed", msg)
             except Exception as e:
                 tl_duration = max(1, int((time.perf_counter() - t_tl) * 1000))
                 if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
@@ -558,7 +606,7 @@ async def run_document_pipeline(document_id: str):
         # Risk Analysis
         if meta.get("risk_analysis") and pipeline_data.get("risk", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Risk stage for document {doc.id} (valid risk analysis preserved)")
-            await _send_agent_update("risk", "completed", 100, "Risk analysis ready (preserved).", confidence=90.0, processing_time_ms=10)
+            await _send_agent_update("risk", "completed", 100, "Risk analysis ready (preserved).", confidence=pipeline_data.get("risk", {}).get("confidence"), processing_time_ms=10)
         else:
             await _send_agent_update("risk", "running", 92, "Assessing legal, financial, and compliance risk levels...")
             risk_agent = RiskAgent()
@@ -576,8 +624,8 @@ async def run_document_pipeline(document_id: str):
                         for a in risk_result.assessments
                     ]
                 }
-                pipeline_data["risk"] = {"status": "completed", "duration_ms": risk_duration}
-                risk_conf = 90.0 if risk_result.overall_risk in ["CRITICAL", "HIGH"] else 80.0
+                risk_conf = round(risk_result.confidence_score * 100, 1) if risk_result.confidence_score <= 1.0 else round(risk_result.confidence_score, 1)
+                pipeline_data["risk"] = {"status": "completed", "duration_ms": risk_duration, "confidence": risk_conf}
                 msg = f"Risk analysis complete: Overall {risk_result.overall_risk} risk in {risk_duration}ms."
                 await _send_agent_update("risk", "completed", 100, msg, confidence=risk_conf, processing_time_ms=risk_duration)
                 await _record_agent_execution(session, "risk", str(doc.id), doc.original_filename, risk_duration, risk_conf, 0, "completed", msg)
@@ -593,7 +641,7 @@ async def run_document_pipeline(document_id: str):
         # ── STAGE 8: AI REVIEW FINDINGS GENERATION ────────────────────────────
         if meta.get("ai_findings") and meta.get("review_output") and pipeline_data.get("legal_review", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Legal Review for document {doc.id} (valid findings preserved)")
-            await _send_agent_update("legal_review", "completed", 100, "Legal review ready (preserved).", confidence=95.0, processing_time_ms=10)
+            await _send_agent_update("legal_review", "completed", 100, "Legal review ready (preserved).", confidence=None, processing_time_ms=10)
         else:
             await _send_agent_update("legal_review", "running", 95, "Synthesizing AI review findings...")
             rev_agent = ReviewAgent()
@@ -625,9 +673,9 @@ async def run_document_pipeline(document_id: str):
                 ]
                 pipeline_data["legal_review"] = {"status": "completed", "duration_ms": rev_duration}
                 msg = f"Legal Review complete: synthesized review findings in {rev_duration}ms."
-                await _send_agent_update("legal_review", "completed", 100, msg, confidence=95.0, processing_time_ms=rev_duration)
-                await _record_agent_execution(session, "legal_review", str(doc.id), doc.original_filename, rev_duration, 95.0, 0, "completed", msg)
-                await _record_agent_execution(session, "review", str(doc.id), doc.original_filename, rev_duration, 95.0, 0, "completed", msg)
+                await _send_agent_update("legal_review", "completed", 100, msg, confidence=None, processing_time_ms=rev_duration)
+                await _record_agent_execution(session, "legal_review", str(doc.id), doc.original_filename, rev_duration, None, 0, "completed", msg)
+                await _record_agent_execution(session, "review", str(doc.id), doc.original_filename, rev_duration, None, 0, "completed", msg)
             except Exception as e:
                 rev_duration = max(1, int((time.perf_counter() - t_rev) * 1000))
                 if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
@@ -642,7 +690,7 @@ async def run_document_pipeline(document_id: str):
         triage_result = None
         if meta.get("triage") and pipeline_data.get("triage", {}).get("status") == "completed":
             logger.info(f"Resuming pipeline: Skipping Triage stage for document {doc.id} (valid triage preserved)")
-            await _send_agent_update("triage", "completed", 100, "Triage ready (preserved).", confidence=meta.get("review_priority", 90.0), processing_time_ms=10)
+            await _send_agent_update("triage", "completed", 100, "Triage ready (preserved).", confidence=None, processing_time_ms=10, priority_score=meta.get("review_priority"))
         else:
             await _send_agent_update("triage", "running", 98, "Evaluating multi-signal triage and priority escalation...")
             triage_agent = TriageOrchestratorAgent()
@@ -685,8 +733,9 @@ async def run_document_pipeline(document_id: str):
                     "completed",
                     100,
                     msg,
-                    confidence=triage_result.priority_score,
+                    confidence=None,
                     processing_time_ms=triage_duration,
+                    priority_score=round(triage_result.priority_score, 1),
                 )
                 await _record_agent_execution(
                     session,
@@ -694,10 +743,11 @@ async def run_document_pipeline(document_id: str):
                     str(doc.id),
                     doc.original_filename,
                     triage_duration,
-                    triage_result.priority_score,
+                    None,
                     0,
                     "completed",
                     msg,
+                    priority_score=round(triage_result.priority_score, 1),
                 )
             except Exception as e:
                 triage_duration = max(1, int((time.perf_counter() - t_triage) * 1000))
@@ -720,10 +770,22 @@ async def run_document_pipeline(document_id: str):
         doc.doc_metadata = meta
 
         # Set final document status based on triage escalation
-        if (triage_result and triage_result.escalation_flag) or meta.get("is_escalated"):
-            doc.status = DocumentStatus.FLAGGED
-        else:
-            doc.status = DocumentStatus.REVIEWED
+        final_status = (
+            DocumentStatus.FLAGGED
+            if ((triage_result and triage_result.escalation_flag) or meta.get("is_escalated"))
+            else DocumentStatus.REVIEWED
+        )
+        final_reason = (
+            "pipeline_stage_triage_escalated"
+            if final_status == DocumentStatus.FLAGGED
+            else "pipeline_stage_review_completed"
+        )
+        await record_status_transition(
+            session,
+            doc,
+            final_status,
+            reason=final_reason,
+        )
         
         audit_log = AuditLog(
             user_email="system@pipeline.local",

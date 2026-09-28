@@ -12,7 +12,11 @@ const templates = [
   { type: 'risk_assessment', title: 'Risk Assessment', desc: 'Calculates legal liability probability based on patent claim and contract overlaps.' },
 ];
 
-export function ReportsPage() {
+interface ReportsPageProps {
+  caseId?: string;
+}
+
+export function ReportsPage({ caseId }: ReportsPageProps = {}) {
   const [reports, setReports] = useState<Report[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -26,7 +30,10 @@ export function ReportsPage() {
   const handleGenerate = async (type: string) => {
     setGenerating(true);
     try {
-      const response = await api.post('/reports/export?format=json');
+      const exportUrl = caseId
+        ? `/reports/export?format=json&case_id=${encodeURIComponent(caseId)}`
+        : '/reports/export?format=json';
+      const response = await api.post(exportUrl);
       const payloadStr = JSON.stringify(response.data || {});
       const byteSize = new Blob([payloadStr]).size;
       const totalDocs = response.data?.summary?.total_documents || response.data?.documents?.length || 424;
@@ -35,7 +42,7 @@ export function ReportsPage() {
         name: `${type.replace('_', ' ').toUpperCase()} Report`,
         type: type as any,
         status: 'completed',
-        caseId: response.data?.case_id || 'unassigned',
+        caseId: response.data?.case_id || caseId || 'unassigned',
         caseName: response.data?.case_name || response.data?.case?.name || 'Active Investigation',
         generatedAt: new Date().toISOString(),
         size: byteSize,

@@ -6,7 +6,7 @@ Includes all sub-routers under the /api/v1 prefix.
 
 from fastapi import APIRouter
 
-from app.api.v1 import cases, documents, health, ocr, search, intelligence, review, agents, websocket, graph, timeline, analytics, auth, reports, case_summaries
+from app.api.v1 import cases, documents, health, ocr, search, intelligence, review, agents, websocket, graph, timeline, analytics, auth, reports, case_summaries, case_qa
 
 router = APIRouter(prefix="/api/v1")
 
@@ -25,5 +25,6 @@ router.include_router(graph.router)
 router.include_router(analytics.router)
 router.include_router(reports.router)
 router.include_router(case_summaries.router)
+router.include_router(case_qa.router)
 
 

@@ -18,11 +18,20 @@ TEST_DB_URL = "sqlite+aiosqlite:///./test_pipeline.db"
 test_engine = create_async_engine(TEST_DB_URL, echo=False)
 TestSessionLocal = async_sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
 
-# Override AsyncSessionLocal in session and orchestrator modules
+# Override AsyncSessionLocal in session and orchestrator modules scoped to this test module
 import app.db.session
 import app.services.orchestrator
-app.db.session.AsyncSessionLocal = TestSessionLocal
-app.services.orchestrator.AsyncSessionLocal = TestSessionLocal
+
+_orig_session_local = app.db.session.AsyncSessionLocal
+_orig_orch_session_local = app.services.orchestrator.AsyncSessionLocal
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    app.db.session.AsyncSessionLocal = TestSessionLocal
+    app.services.orchestrator.AsyncSessionLocal = TestSessionLocal
+    yield
+    app.db.session.AsyncSessionLocal = _orig_session_local
+    app.services.orchestrator.AsyncSessionLocal = _orig_orch_session_local
 
 from app.models.case import Case, CaseStatus, CasePriority
 from app.models.document import Document, DocumentStatus

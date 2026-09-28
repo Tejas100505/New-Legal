@@ -52,10 +52,20 @@ class DocumentRepository(BaseRepository[Document]):
         return result.scalars().all()
 
     async def update_status(
-        self, doc_id: uuid.UUID, status: DocumentStatus
+        self,
+        doc_id: uuid.UUID,
+        status: DocumentStatus,
+        *,
+        changed_by: uuid.UUID | str | None = None,
+        reason: str | None = None,
     ) -> Document | None:
-        """Update just the processing status of a document."""
-        return await self.update(doc_id, status=status)
+        """Update just the processing status of a document and record audit history."""
+        doc = await self.get_by_id(doc_id)
+        if not doc:
+            return None
+        from app.services.status_history_service import record_status_transition
+        await record_status_transition(self._session, doc, status, changed_by=changed_by, reason=reason)
+        return doc
 
     async def get_by_checksum(self, checksum: str) -> Document | None:
         """Fetch a document by its SHA-256 checksum."""

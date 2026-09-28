@@ -2,7 +2,11 @@ import { useTimelineStore } from '../store/timelineStore';
 import { Filter, RotateCcw, Calendar, ShieldAlert, FileText, User, Link2 } from 'lucide-react';
 import type { TimelinePriority } from '@/types';
 
-export function TimelineFilterBar() {
+interface TimelineFilterBarProps {
+  hideCaseSelector?: boolean;
+}
+
+export function TimelineFilterBar({ hideCaseSelector = false }: TimelineFilterBarProps = {}) {
   const filters = useTimelineStore((s) => s.filters);
   const setFilters = useTimelineStore((s) => s.setFilters);
   const resetFilters = useTimelineStore((s) => s.resetFilters);
@@ -46,21 +50,23 @@ export function TimelineFilterBar() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 ${hideCaseSelector ? 'lg:grid-cols-6' : 'lg:grid-cols-7'} gap-3`}>
         {/* 1. Case Filter */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Matter</label>
-          <select
-            value={filters.caseId || ''}
-            onChange={(e) => setFilters({ caseId: e.target.value || null })}
-            className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
-          >
-            <option key="all-cases" value="">All Cases</option>
-            {uniqueCases.map((c, idx) => (
-              <option key={`case-${c.id ?? idx}-${idx}`} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        {!hideCaseSelector && (
+          <div className="flex flex-col gap-1" id="timeline-case-selector">
+            <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Matter</label>
+            <select
+              value={filters.caseId || ''}
+              onChange={(e) => setFilters({ caseId: e.target.value || null })}
+              className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+            >
+              <option key="all-cases" value="">All Cases</option>
+              {uniqueCases.map((c, idx) => (
+                <option key={`case-${c.id ?? idx}-${idx}`} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* 2. Priority Filter */}
         <div className="flex flex-col gap-1">

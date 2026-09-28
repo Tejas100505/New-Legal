@@ -104,10 +104,29 @@ async def test_graph_endpoint_no_doc_nodes_in_inter_entity_pairs_and_exact_menti
        or have label 'mentions' (all canonical containment edges are MENTIONS_<CAT>).
     3. No document-node appears in the entity-entity edge set.
     """
+    import uuid
+    from app.models.user import User
+
+    async with session_module.AsyncSessionLocal() as session:
+        user_uuid = uuid.UUID("00000000-0000-0000-0000-000000000000")
+        existing_user = await session.get(User, user_uuid)
+        if not existing_user:
+            session.add(User(
+                id=user_uuid,
+                email="admin@example.com",
+                hashed_password="pw",
+                full_name="Admin User",
+                role=UserRole.ADMIN,
+                is_active=True,
+                token_version=0,
+            ))
+            await session.commit()
+
     token = create_access_token(
         user_id="00000000-0000-0000-0000-000000000000",
         email="admin@example.com",
-        role=UserRole.ADMIN
+        role=UserRole.ADMIN,
+        token_version=0,
     )
     headers = {"Authorization": f"Bearer {token}"}
 

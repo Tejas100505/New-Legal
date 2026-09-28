@@ -27,10 +27,31 @@ from app.agents.ingestion import DocumentIngestionAgent, IngestionInput, Unsuppo
 from app.agents.summarization import SummarizationAgent, SummarizationInput
 
 
+from app.models.user import User
+
+
 async def init_security_db():
     db_session_module.AsyncSessionLocal = SecuritySessionLocal
     async with security_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
+
+async def seed_user(user_id: str, email: str, role: UserRole = UserRole.LAWYER) -> str:
+    """Helper to seed a test user in SecuritySessionLocal with token_version=0."""
+    async with SecuritySessionLocal() as session:
+        user = User(
+            id=uuid.UUID(user_id),
+            email=email,
+            hashed_password="pw",
+            full_name=f"User {email}",
+            role=role,
+            is_active=True,
+            token_version=0,
+        )
+        session.add(user)
+        await session.commit()
+    return create_access_token(user_id=user_id, email=email, role=role, token_version=0)
 
 
 client = TestClient(app)
@@ -90,7 +111,7 @@ async def test_sql_injection_resilience():
     """Verify malicious SQL injection string inputs in search/case routes are safely parameterized."""
     await init_security_db()
     malicious_query = "' OR '1'='1' -- DROP TABLE cases;"
-    token = create_access_token(user_id=str(uuid.uuid4()), email="sec@test.com", role=UserRole.LAWYER)
+    token = await seed_user(str(uuid.uuid4()), "sec@test.com", UserRole.LAWYER)
     headers = {"Authorization": f"Bearer {token}"}
 
     res = client.post("/api/v1/search/semantic", json={"query": malicious_query}, headers=headers)
@@ -125,8 +146,10 @@ def test_all_protected_endpoints_require_auth():
         assert "Missing authentication credentials" in res.json()["detail"]
 
 
-def test_public_endpoints_accessible_without_auth():
+@pytest.mark.asyncio
+async def test_public_endpoints_accessible_without_auth():
     """Verify public endpoints remain accessible without auth token."""
+    await init_security_db()
     # Health check
     res = client.get("/api/v1/health")
     assert res.status_code == 200
@@ -141,7 +164,7 @@ def test_public_endpoints_accessible_without_auth():
 async def test_authenticated_requests_succeed():
     """Verify endpoints succeed with a valid JWT token."""
     await init_security_db()
-    token = create_access_token(user_id=str(uuid.uuid4()), email="auth@test.com", role=UserRole.LAWYER)
+    token = await seed_user(str(uuid.uuid4()), "auth@test.com", UserRole.LAWYER)
     headers = {"Authorization": f"Bearer {token}"}
 
     endpoints = [
@@ -162,9 +185,11 @@ async def test_authenticated_requests_succeed():
         assert res.status_code == 200, f"{method} {endpoint} returned {res.status_code}, expected 200"
 
 
-def test_rbac_client_forbidden_on_delete_and_audit():
+@pytest.mark.asyncio
+async def test_rbac_client_forbidden_on_delete_and_audit():
     """Verify CLIENT role users receive 403 Forbidden on restricted endpoints."""
-    token = create_access_token(user_id=str(uuid.uuid4()), email="client@test.com", role=UserRole.CLIENT)
+    await init_security_db()
+    token = await seed_user(str(uuid.uuid4()), "client@test.com", UserRole.CLIENT)
     headers = {"Authorization": f"Bearer {token}"}
     fake_id = str(uuid.uuid4())
 
@@ -188,7 +213,7 @@ def test_rbac_client_forbidden_on_delete_and_audit():
 async def test_rbac_lawyer_authorized_on_delete_and_audit():
     """Verify LAWYER role users pass auth guards on restricted endpoints."""
     await init_security_db()
-    token = create_access_token(user_id=str(uuid.uuid4()), email="lawyer@test.com", role=UserRole.LAWYER)
+    token = await seed_user(str(uuid.uuid4()), "lawyer@test.com", UserRole.LAWYER)
     headers = {"Authorization": f"Bearer {token}"}
     fake_id = str(uuid.uuid4())
 
@@ -255,9 +280,9 @@ async def test_cross_tenant_access_isolation():
     user_b_id = str(uuid.uuid4())
     admin_id = str(uuid.uuid4())
 
-    token_a = create_access_token(user_id=user_a_id, email="alice@firm-a.com", role=UserRole.LAWYER)
-    token_b = create_access_token(user_id=user_b_id, email="bob@firm-b.com", role=UserRole.LAWYER)
-    token_admin = create_access_token(user_id=admin_id, email="admin@corp.com", role=UserRole.ADMIN)
+    token_a = await seed_user(user_a_id, "alice@firm-a.com", UserRole.LAWYER)
+    token_b = await seed_user(user_b_id, "bob@firm-b.com", UserRole.LAWYER)
+    token_admin = await seed_user(admin_id, "admin@corp.com", UserRole.ADMIN)
 
     headers_a = {"Authorization": f"Bearer {token_a}"}
     headers_b = {"Authorization": f"Bearer {token_b}"}

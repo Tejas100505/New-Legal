@@ -12,13 +12,14 @@ import { BookOpen, X } from 'lucide-react';
 
 interface GraphCanvasProps {
   layoutTrigger: number;
+  caseId?: string;
 }
 
 const nodeTypes = {
   customNode: CustomNode,
 };
 
-export function GraphCanvas({ layoutTrigger }: GraphCanvasProps) {
+export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
   const { fitView } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
@@ -45,8 +46,8 @@ export function GraphCanvas({ layoutTrigger }: GraphCanvasProps) {
 
   // Load graph data from backend on mount
   useEffect(() => {
-    fetchGraph();
-  }, [fetchGraph]);
+    fetchGraph(caseId);
+  }, [fetchGraph, caseId]);
 
   // Sync React Flow nodes and edges back to store
   useEffect(() => {

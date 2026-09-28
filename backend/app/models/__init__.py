@@ -11,6 +11,7 @@ from app.models.evaluation import EvaluationMetric
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.models.case_summary import CaseSummary, CaseSummaryStatus
+from app.models.status_history import StatusHistory
 
 __all__ = [
     "Case",
@@ -24,4 +25,5 @@ __all__ = [
     "AuditLog",
     "CaseSummary",
     "CaseSummaryStatus",
+    "StatusHistory",
 ]

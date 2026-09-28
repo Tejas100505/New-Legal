@@ -54,16 +54,35 @@ def mock_background_pipeline_and_upload():
         yield
 
 
+from app.models.user import User
+
+TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
+TEST_USER_EMAIL = "ratelimit_user@lawfirm.com"
+
+
 async def init_test_db():
     limiter.reset()
     db_session_module.AsyncSessionLocal = RateSessionLocal
     async with rate_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+    async with RateSessionLocal() as session:
+        user = User(
+            id=uuid.UUID(TEST_USER_ID),
+            email=TEST_USER_EMAIL,
+            hashed_password="pw",
+            full_name="Rate Limit Tester",
+            role=UserRole.LAWYER,
+            is_active=True,
+            token_version=0,
+        )
+        session.add(user)
+        await session.commit()
 
 
 def get_auth_headers(user_id: str = None) -> dict[str, str]:
-    uid = user_id or str(uuid.uuid4())
-    token = create_access_token(user_id=uid, email=f"user_{uid[:6]}@lawfirm.com", role=UserRole.LAWYER)
+    uid = user_id or TEST_USER_ID
+    token = create_access_token(user_id=uid, email=TEST_USER_EMAIL, role=UserRole.LAWYER, token_version=0)
     return {"Authorization": f"Bearer {token}"}
 
 

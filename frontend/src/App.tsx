@@ -16,23 +16,35 @@ const DashboardPage = React.lazy(() =>
 const CasesPage = React.lazy(() =>
   import('@/features/cases/pages/CasesPage').then((m) => ({ default: m.CasesPage }))
 );
-const DocumentsPage = React.lazy(() =>
-  import('@/features/documents/pages/DocumentsPage').then((m) => ({ default: m.DocumentsPage }))
+const CaseWorkspaceLayout = React.lazy(() =>
+  import('@/features/case-workspace/CaseWorkspaceLayout').then((m) => ({ default: m.CaseWorkspaceLayout }))
+);
+const OverviewTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/OverviewTab').then((m) => ({ default: m.OverviewTab }))
+);
+const EvidenceTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/EvidenceTab').then((m) => ({ default: m.EvidenceTab }))
+);
+const ReviewTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/ReviewTab').then((m) => ({ default: m.ReviewTab }))
+);
+const FindingsTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/FindingsTab').then((m) => ({ default: m.FindingsTab }))
+);
+const RelationshipsTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/RelationshipsTab').then((m) => ({ default: m.RelationshipsTab }))
+);
+const TimelineTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/TimelineTab').then((m) => ({ default: m.TimelineTab }))
+);
+const AskTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/AskTab').then((m) => ({ default: m.AskTab }))
+);
+const ReportTab = React.lazy(() =>
+  import('@/features/case-workspace/tabs/ReportTab').then((m) => ({ default: m.ReportTab }))
 );
 const DocumentViewerPage = React.lazy(() =>
   import('@/features/documents/pages/DocumentViewerPage').then((m) => ({ default: m.DocumentViewerPage }))
-);
-const InvestigationPage = React.lazy(() =>
-  import('@/features/investigation/pages/InvestigationPage').then((m) => ({ default: m.InvestigationPage }))
-);
-const KnowledgeGraphPage = React.lazy(() =>
-  import('@/features/knowledge-graph/pages/KnowledgeGraphPage').then((m) => ({ default: m.KnowledgeGraphPage }))
-);
-const TimelinePage = React.lazy(() =>
-  import('@/features/timeline/pages/TimelinePage').then((m) => ({ default: m.TimelinePage }))
-);
-const AIReviewPage = React.lazy(() =>
-  import('@/features/ai-review/pages/AIReviewPage').then((m) => ({ default: m.AIReviewPage }))
 );
 const SemanticSearchPage = React.lazy(() =>
   import('@/features/semantic-search/pages/SemanticSearchPage').then((m) => ({ default: m.SemanticSearchPage }))
@@ -40,15 +52,19 @@ const SemanticSearchPage = React.lazy(() =>
 const ReportsPage = React.lazy(() =>
   import('@/features/reports/pages/ReportsPage').then((m) => ({ default: m.ReportsPage }))
 );
-const AnalyticsPage = React.lazy(() =>
-  import('@/features/analytics/pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage }))
-);
 const SettingsPage = React.lazy(() =>
   import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
-const AgentsPage = React.lazy(() =>
-  import('@/features/agents/pages/AgentsPage').then((m) => ({ default: m.AgentsPage }))
+const SettingsAnalyticsPage = React.lazy(() =>
+  import('@/features/settings/pages/SettingsAnalyticsPage').then((m) => ({ default: m.SettingsAnalyticsPage }))
 );
+const SettingsAgentsPage = React.lazy(() =>
+  import('@/features/settings/pages/SettingsAgentsPage').then((m) => ({ default: m.SettingsAgentsPage }))
+);
+const SettingsSystemPage = React.lazy(() =>
+  import('@/features/settings/pages/SettingsSystemPage').then((m) => ({ default: m.SettingsSystemPage }))
+);
+
 const NotFound = React.lazy(() =>
   import('@/pages/NotFound').then((m) => ({ default: m.NotFound }))
 );
@@ -148,17 +164,40 @@ export default function App() {
           >
             <Route path="/" element={<DashboardPage />} />
             <Route path="/cases" element={<CasesPage />} />
-            <Route path="/documents" element={<DocumentsPage />} />
-            <Route path="/documents/:id" element={<DocumentViewerPage />} />
-            <Route path="/investigation" element={<InvestigationPage />} />
-            <Route path="/knowledge-graph" element={<KnowledgeGraphPage />} />
-            <Route path="/timeline" element={<TimelinePage />} />
-            <Route path="/ai-review" element={<AIReviewPage />} />
+
+            {/* Nested Case Workspace */}
+            <Route path="/cases/:caseId" element={<CaseWorkspaceLayout />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<OverviewTab />} />
+              <Route path="evidence" element={<EvidenceTab />} />
+              <Route path="review" element={<ReviewTab />} />
+              <Route path="findings" element={<FindingsTab />} />
+              <Route path="relationships" element={<RelationshipsTab />} />
+              <Route path="timeline" element={<TimelineTab />} />
+              <Route path="ask" element={<AskTab />} />
+              <Route path="report" element={<ReportTab />} />
+            </Route>
+
+            {/* Standalone Top-Level Routes */}
             <Route path="/search" element={<SemanticSearchPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/settings/analytics" element={<SettingsAnalyticsPage />} />
+            <Route path="/settings/agents" element={<SettingsAgentsPage />} />
+            <Route path="/settings/system" element={<SettingsSystemPage />} />
+
+            {/* Document Viewer (per-document deep view) */}
+            <Route path="/documents/:id" element={<DocumentViewerPage />} />
+
+            {/* Backward Compatibility Redirects */}
+            <Route path="/investigation" element={<Navigate to="/cases" replace />} />
+            <Route path="/knowledge-graph" element={<Navigate to="/cases" replace />} />
+            <Route path="/timeline" element={<Navigate to="/cases" replace />} />
+            <Route path="/ai-review" element={<Navigate to="/cases" replace />} />
+            <Route path="/analytics" element={<Navigate to="/settings/analytics" replace />} />
+            <Route path="/agents" element={<Navigate to="/settings/agents" replace />} />
+            <Route path="/documents" element={<Navigate to="/cases" replace />} />
+
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

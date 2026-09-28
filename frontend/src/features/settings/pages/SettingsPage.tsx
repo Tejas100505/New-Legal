@@ -10,6 +10,7 @@ import { Toggle } from '@/components/atoms/Toggle';
 import { useThemeStore } from '@/stores/themeStore';
 import { useAuthStore } from '@/features/auth/store';
 import { Badge } from '@/components/atoms/Badge';
+import { SettingsSubNav } from '../components/SettingsSubNav';
 
 export function SettingsPage() {
   const { theme, setTheme } = useThemeStore();
@@ -24,6 +25,7 @@ export function SettingsPage() {
       title="Settings"
       description="Manage account settings, application theme, and notification preferences."
     >
+      <SettingsSubNav />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Side: Profile overview */}
         <div className="lg:col-span-1 space-y-4">

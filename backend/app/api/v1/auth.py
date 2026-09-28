@@ -51,6 +51,7 @@ async def login(
         user_id=str(user.id),
         email=user.email,
         role=user.role,
+        token_version=user.token_version,
     )
     logger.info("User logged in successfully", user_id=str(user.id), email=user.email)
 
@@ -123,8 +124,23 @@ async def get_me(
     status_code=status.HTTP_200_OK,
     summary="Log out user",
 )
+@limiter.limit("10/minute")
 async def logout(
+    request: Request,
     current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
-    """Logout endpoint."""
+    """Logout endpoint — revokes all active tokens by incrementing user token_version."""
+    import uuid
+    from sqlalchemy import update
+    from app.models.user import User
+
+    user_uuid = uuid.UUID(current_user.sub)
+    await db.execute(
+        update(User)
+        .where(User.id == user_uuid)
+        .values(token_version=User.token_version + 1)
+    )
+    await db.commit()
+    logger.info("User logged out, token_version incremented", user_id=current_user.sub)
     return {"status": "success", "message": "Logged out successfully"}

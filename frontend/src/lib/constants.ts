@@ -12,15 +12,18 @@ export const ROUTES = {
   LOGIN: '/login',
   DASHBOARD: '/',
   CASES: '/cases',
+  CASE_WORKSPACE: '/cases/:caseId',
+  SEARCH: '/search',
+  REPORTS: '/reports',
+  SETTINGS: '/settings',
+  // Backward compatibility aliases (redirected in route tree)
   DOCUMENTS: '/documents',
   INVESTIGATION: '/investigation',
   KNOWLEDGE_GRAPH: '/knowledge-graph',
   TIMELINE: '/timeline',
   AI_REVIEW: '/ai-review',
   SEMANTIC_SEARCH: '/search',
-  REPORTS: '/reports',
   ANALYTICS: '/analytics',
-  SETTINGS: '/settings',
   AGENTS: '/agents',
 } as const;
 
@@ -29,15 +32,16 @@ export const ROUTES = {
 export const ROUTE_META: Record<string, { title: string; description: string }> = {
   [ROUTES.DASHBOARD]: { title: 'Dashboard', description: 'Platform overview and insights' },
   [ROUTES.CASES]: { title: 'Cases', description: 'Manage legal cases and matters' },
+  [ROUTES.SEARCH]: { title: 'Search', description: 'AI-driven semantic and keyword search' },
+  [ROUTES.REPORTS]: { title: 'Reports', description: 'Generated reports and exports' },
+  [ROUTES.SETTINGS]: { title: 'Settings', description: 'Account and platform settings' },
+  // Backward compatibility entries
   [ROUTES.DOCUMENTS]: { title: 'Documents', description: 'Document library and management' },
   [ROUTES.INVESTIGATION]: { title: 'Investigation', description: 'Evidence board and analysis' },
   [ROUTES.KNOWLEDGE_GRAPH]: { title: 'Knowledge Graph', description: 'Entity relationships and connections' },
   [ROUTES.TIMELINE]: { title: 'Timeline', description: 'Chronological case events' },
   [ROUTES.AI_REVIEW]: { title: 'AI Review', description: 'AI-powered document review workspace' },
-  [ROUTES.SEMANTIC_SEARCH]: { title: 'Semantic Search', description: 'AI-driven document search' },
-  [ROUTES.REPORTS]: { title: 'Reports', description: 'Generated reports and exports' },
   [ROUTES.ANALYTICS]: { title: 'Analytics', description: 'Data insights and trends' },
-  [ROUTES.SETTINGS]: { title: 'Settings', description: 'Account and platform settings' },
   [ROUTES.AGENTS]: { title: 'AI Agents', description: 'Monitor all AI agent activity' },
 };
 
@@ -53,20 +57,10 @@ export interface SidebarNavItem {
 }
 
 export const SIDEBAR_NAVIGATION: SidebarNavItem[] = [
-  // Main Section
   { label: 'Dashboard', path: ROUTES.DASHBOARD, iconName: 'LayoutDashboard', section: 'main' },
   { label: 'Cases', path: ROUTES.CASES, iconName: 'FolderOpen', badgeVariant: 'default', section: 'main' },
-  { label: 'Documents', path: ROUTES.DOCUMENTS, iconName: 'FileText', section: 'main' },
-  { label: 'AI Agents', path: ROUTES.AGENTS, iconName: 'Bot', badgeVariant: 'success', section: 'main' },
-  // Analysis Section
-  { label: 'Investigation', path: ROUTES.INVESTIGATION, iconName: 'Search', section: 'analysis' },
-  { label: 'Knowledge Graph', path: ROUTES.KNOWLEDGE_GRAPH, iconName: 'GitBranch', section: 'analysis' },
-  { label: 'Timeline', path: ROUTES.TIMELINE, iconName: 'Clock', section: 'analysis' },
-  { label: 'AI Review', path: ROUTES.AI_REVIEW, iconName: 'Brain', badgeVariant: 'warning', section: 'analysis' },
-  { label: 'Semantic Search', path: ROUTES.SEMANTIC_SEARCH, iconName: 'Sparkles', section: 'analysis' },
-  // Output Section
-  { label: 'Reports', path: ROUTES.REPORTS, iconName: 'FileBarChart', section: 'output' },
-  { label: 'Analytics', path: ROUTES.ANALYTICS, iconName: 'BarChart3', section: 'output' },
+  { label: 'Search', path: ROUTES.SEARCH, iconName: 'Search', section: 'main' },
+  { label: 'Reports', path: ROUTES.REPORTS, iconName: 'FileBarChart', section: 'main' },
 ];
 
 // ── API Endpoints ────────────────────────────────────────────────────────────

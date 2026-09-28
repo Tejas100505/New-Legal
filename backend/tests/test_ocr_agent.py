@@ -102,13 +102,13 @@ async def test_heuristic_fallback_raises_honestly_without_mock_text(tmp_path):
     # 1. Test empty file named with old trigger keywords
     empty_meridian = tmp_path / "meridian_agreement.pdf"
     empty_meridian.write_text("", encoding="utf-8")
-    with pytest.raises(OCREngineException, match="Heuristic fallback failed: No extractable text found"):
+    with pytest.raises(OCREngineException, match="Heuristic fallback failed:"):
         engine.process(str(empty_meridian), 1)
 
     # 2. Test binary non-text file named with old SEC trigger keywords
     binary_sec = tmp_path / "sec_filing.bin"
     binary_sec.write_bytes(b"\x00\x01\x02\x03\x04\xff\xfe")
-    with pytest.raises(OCREngineException, match="Heuristic fallback failed: No extractable text found"):
+    with pytest.raises(OCREngineException, match="Heuristic fallback failed:"):
         engine.process(str(binary_sec), 1)
 
 
@@ -193,4 +193,125 @@ async def test_real_pypdf_success_path():
     assert result.confidence == 1.0
     assert result.ocr_status == "completed"
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_ocr_both_deterministic_and_llm_fail_returns_honest_agent_exception(tmp_path):
+    engines = [
+        MockFailingEngine("pypdf"),
+        MockFailingEngine("Tesseract"),
+        MockFailingEngine("LLM-OCR"),
+        MockFailingEngine("Heuristic-Fallback"),
+    ]
+    agent = OCRAgent(engines=engines)
+    test_pdf = tmp_path / "scanned_brief.pdf"
+    test_pdf.write_bytes(b"%PDF-1.4 dummy non-extractable content")
+
+    input_data = OCRInput(
+        file_path=str(test_pdf),
+        document_type="application/pdf",
+        page_number=1
+    )
+
+    with pytest.raises(AgentException) as exc_info:
+        await agent.run(input_data)
+
+    err = str(exc_info.value)
+    assert "All OCR engines failed for 'scanned_brief.pdf'" in err
+    assert "pypdf" in err
+    assert "LLM-OCR" in err
+    assert "meridian" not in err.lower()
+    assert "whitfield" not in err.lower()
+
+
+@pytest.mark.asyncio
+async def test_heuristic_fallback_rejects_binary_pdf(tmp_path):
+    from app.agents.ocr import HeuristicFallbackEngine
+    engine = HeuristicFallbackEngine()
+    test_pdf = tmp_path / "sample_scanned.pdf"
+    test_pdf.write_bytes(b"%PDF-1.4 1 0 obj << /Type /Catalog >> endobj")
+
+    with pytest.raises(OCREngineException, match="Cannot extract text from binary or scanned format"):
+        engine.process(str(test_pdf), 1)
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_ocr_failure_routes_to_error_status_with_status_history(tmp_path):
+    import uuid
+    from unittest.mock import AsyncMock, patch
+    from app.models.document import Document, DocumentStatus
+    from app.models.status_history import StatusHistory
+    from app.services.orchestrator import run_document_pipeline
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+    from app.db.base import Base
+    import app.db.session as db_session_module
+
+    test_engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    SessionLocal = async_sessionmaker(bind=test_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    orig_session_local = db_session_module.AsyncSessionLocal
+    db_session_module.AsyncSessionLocal = SessionLocal
+
+    try:
+        user_id = uuid.uuid4()
+        doc_id = uuid.uuid4()
+        test_file = tmp_path / "corrupted_scan.pdf"
+        test_file.write_bytes(b"\x00\x01\x02\x03\x04")
+
+        async with SessionLocal() as session:
+            doc = Document(
+                id=doc_id,
+                uploaded_by=user_id,
+                filename="corrupted_scan.pdf",
+                original_filename="corrupted_scan.pdf",
+                file_size=5,
+                content_type="application/pdf",
+                storage_path=str(test_file),
+                status=DocumentStatus.UPLOADED,
+                doc_metadata={},
+            )
+            session.add(doc)
+            await session.commit()
+
+        class MockStorageCtx:
+            def __init__(self, path):
+                self.path = path
+            async def __aenter__(self):
+                return self.path
+            async def __aexit__(self, *args):
+                pass
+
+        class MockStorageService:
+            def get_local_filepath(self, storage_path):
+                return MockStorageCtx(storage_path)
+
+        with patch("app.services.orchestrator.AsyncSessionLocal", SessionLocal), \
+             patch("app.services.storage_service.get_storage_service", return_value=MockStorageService()):
+            await run_document_pipeline(str(doc_id))
+
+        async with SessionLocal() as session:
+            from sqlalchemy import select
+            res_doc = await session.execute(select(Document).where(Document.id == doc_id))
+            saved_doc = res_doc.scalar_one()
+
+            # Verify document routed to ERROR status and extracted_text is None
+            assert saved_doc.status == DocumentStatus.ERROR
+            assert saved_doc.extracted_text is None
+
+            # Verify status_history records ocr_extraction_failed_both_engines transition
+            res_hist = await session.execute(
+                select(StatusHistory).where(StatusHistory.document_id == doc_id).order_by(StatusHistory.changed_at.asc())
+            )
+            history_rows = res_hist.scalars().all()
+            assert len(history_rows) >= 2
+            error_transition = history_rows[-1]
+            assert error_transition.new_status == DocumentStatus.ERROR.value
+            assert error_transition.reason == "ocr_extraction_failed_both_engines"
+    finally:
+        db_session_module.AsyncSessionLocal = orig_session_local
+        await test_engine.dispose()
+
 

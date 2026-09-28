@@ -201,6 +201,7 @@ from app.db.base import Base
 from app.main import app
 from app.models.case import Case, CaseStatus, CasePriority
 from app.models.document import Document, DocumentStatus
+from app.models.user import User
 from app.auth.dependencies import create_access_token, UserRole
 
 
@@ -244,9 +245,17 @@ async def test_analytics_endpoint_honest_metrics_and_tenant_isolation():
         user_b_id = str(uuid.uuid4())
         admin_id = str(uuid.uuid4())
 
-        token_a = create_access_token(user_id=user_a_id, email="alice@firm-a.com", role=UserRole.LAWYER)
-        token_b = create_access_token(user_id=user_b_id, email="bob@firm-b.com", role=UserRole.LAWYER)
-        token_admin = create_access_token(user_id=admin_id, email="admin@corp.com", role=UserRole.ADMIN)
+        async with AnalyticsSessionLocal() as session:
+            session.add_all([
+                User(id=uuid.UUID(user_a_id), email="alice@firm-a.com", hashed_password="pw", full_name="Alice", role=UserRole.LAWYER, is_active=True, token_version=0),
+                User(id=uuid.UUID(user_b_id), email="bob@firm-b.com", hashed_password="pw", full_name="Bob", role=UserRole.LAWYER, is_active=True, token_version=0),
+                User(id=uuid.UUID(admin_id), email="admin@corp.com", hashed_password="pw", full_name="Admin", role=UserRole.ADMIN, is_active=True, token_version=0),
+            ])
+            await session.commit()
+
+        token_a = create_access_token(user_id=user_a_id, email="alice@firm-a.com", role=UserRole.LAWYER, token_version=0)
+        token_b = create_access_token(user_id=user_b_id, email="bob@firm-b.com", role=UserRole.LAWYER, token_version=0)
+        token_admin = create_access_token(user_id=admin_id, email="admin@corp.com", role=UserRole.ADMIN, token_version=0)
 
         headers_a = {"Authorization": f"Bearer {token_a}"}
         headers_b = {"Authorization": f"Bearer {token_b}"}

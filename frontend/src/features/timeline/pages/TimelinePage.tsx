@@ -10,7 +10,11 @@ import { CalendarClock, Search } from 'lucide-react';
 
 import { useEffect } from 'react';
 
-export function TimelinePage() {
+interface TimelinePageProps {
+  caseId?: string;
+}
+
+export function TimelinePage({ caseId }: TimelinePageProps = {}) {
   const events = useTimelineStore((s) => s.events);
   const filters = useTimelineStore((s) => s.filters);
   const fetchTimeline = useTimelineStore((s) => s.fetchTimeline);
@@ -19,8 +23,9 @@ export function TimelinePage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchTimeline(filters.caseId);
-  }, [fetchTimeline, filters.caseId]);
+    const activeCaseId = caseId || filters.caseId;
+    fetchTimeline(activeCaseId);
+  }, [fetchTimeline, caseId, filters.caseId]);
 
   // 7 Filter Dimensions matching
   const filteredEvents = events.filter((e) => {
@@ -35,7 +40,8 @@ export function TimelinePage() {
     }
 
     // 2. Case filter
-    if (filters.caseId && e.caseId !== filters.caseId) return false;
+    const activeCaseId = caseId || filters.caseId;
+    if (activeCaseId && e.caseId !== activeCaseId) return false;
 
     // 3. Priority filter
     if (filters.priority && e.priority !== filters.priority) return false;
@@ -109,7 +115,7 @@ export function TimelinePage() {
             </div>
           </div>
 
-          <TimelineFilterBar />
+          <TimelineFilterBar hideCaseSelector={Boolean(caseId)} />
         </div>
 
         {/* Timeline Minimap Density Ruler */}

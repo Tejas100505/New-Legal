@@ -74,3 +74,53 @@ class DocumentUploadResponse(BaseModel):
     uploaded_by: uuid.UUID | None = None
     message: str = "Document uploaded successfully"
 
+
+class StatusHistoryResponse(BaseModel):
+    """Schema for a single document status history entry."""
+    id: uuid.UUID
+    document_id: uuid.UUID
+    old_status: str | None = None
+    new_status: str
+    changed_at: datetime
+    changed_by: uuid.UUID | None = None
+    reason: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PipelineStageResponse(BaseModel):
+    """Schema for a single stage in the 10-stage processing pipeline."""
+    id: str
+    label: str
+    order: int
+    agent_ids: list[str] = Field(default_factory=list, alias="agentIds")
+    status: str
+    completed_at: str | None = Field(None, alias="completedAt")
+    duration_ms: int | None = Field(None, alias="durationMs")
+
+    model_config = {"populate_by_name": True, "from_attributes": True}
+
+
+class PipelineStatusResponse(BaseModel):
+    """Schema describing case-scoped or document-scoped pipeline execution state."""
+    case_id: str | None = Field(None, alias="caseId")
+    document_id: str | None = Field(None, alias="documentId")
+    status: str | None = None
+    current_stage: str = Field(alias="currentStage")
+    is_quota_paused: bool = Field(False, alias="isQuotaPaused")
+    paused_stage: str | None = Field(None, alias="pausedStage")
+    paused_reason: str | None = Field(None, alias="pausedReason")
+    last_reason: str | None = Field(None, alias="lastReason")
+    stages: list[PipelineStageResponse]
+    overall_progress: int = Field(alias="overallProgress")
+    started_at: str | None = Field(None, alias="startedAt")
+    completed_at: str | None = Field(None, alias="completedAt")
+    estimated_completion_at: str | None = Field(None, alias="estimatedCompletionAt")
+    history: list[StatusHistoryResponse] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True, "from_attributes": True}
+
+
+DocumentPipelineStatusResponse = PipelineStatusResponse
+
+

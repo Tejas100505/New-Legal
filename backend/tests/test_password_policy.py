@@ -24,7 +24,13 @@ pw_engine = create_async_engine(TEST_DB_URL, echo=False)
 PwSessionLocal = async_sessionmaker(bind=pw_engine, class_=AsyncSession, expire_on_commit=False)
 
 import app.db.session as db_session_module
-db_session_module.AsyncSessionLocal = PwSessionLocal
+_orig_session_local = db_session_module.AsyncSessionLocal
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    db_session_module.AsyncSessionLocal = PwSessionLocal
+    yield
+    db_session_module.AsyncSessionLocal = _orig_session_local
 
 from app.main import app
 from app.db.base import Base
@@ -40,6 +46,7 @@ async def init_pw_db():
     limiter.reset()
     db_session_module.AsyncSessionLocal = PwSessionLocal
     async with pw_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
 

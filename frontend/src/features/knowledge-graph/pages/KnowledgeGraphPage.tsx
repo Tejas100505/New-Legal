@@ -7,7 +7,11 @@ import { NodeDetailPanel } from '../components/NodeDetailPanel';
 import { PathFinderModal } from '../components/PathFinderModal';
 import { ReactFlowProvider } from '@xyflow/react';
 
-export function KnowledgeGraphPage() {
+interface KnowledgeGraphPageProps {
+  caseId?: string;
+}
+
+export function KnowledgeGraphPage({ caseId }: KnowledgeGraphPageProps = {}) {
   const [layoutTrigger, setLayoutTrigger] = useState(0);
   const [isPathFinderOpen, setIsPathFinderOpen] = useState(false);
 
@@ -35,7 +39,7 @@ export function KnowledgeGraphPage() {
 
             {/* Central Canvas */}
             <div className="flex-1 rounded-xl border border-slate-800/80 bg-slate-950 overflow-hidden relative">
-              <Canvas layoutTrigger={layoutTrigger} />
+              <Canvas layoutTrigger={layoutTrigger} caseId={caseId} />
             </div>
 
             {/* Right Node Detail Panel */}

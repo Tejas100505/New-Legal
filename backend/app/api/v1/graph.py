@@ -2,7 +2,7 @@ import uuid
 import networkx as nx
 from fastapi import APIRouter, HTTPException, Query, Depends, status
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.services.document_service import DocumentService
@@ -143,6 +143,9 @@ from app.auth.dependencies import UserRole
 from app.services.entity_resolution import EntityResolutionService
 from app.services.edge_weighting import EdgeWeightingService, should_suppress_edge, should_suppress_node
 from app.services.centrality_service import CentralityService
+import time
+from loguru import logger
+
 
 def _resolve_link_node(raw_id: str, doc_node_id: str, doc_id_str: str, doc_filename: str, resolver: EntityResolutionService) -> str:
     if raw_id == doc_id_str or raw_id == doc_filename:
@@ -187,10 +190,13 @@ async def _build_knowledge_graph(
     if limit:
         stmt = stmt.limit(limit)
 
+    t_start = time.perf_counter()
     result = await db.execute(stmt)
     docs = result.all()
+    t_db = time.perf_counter() - t_start
 
     # Step 1: Collect all entity mentions across documents for global canonical resolution
+    t_cluster_start = time.perf_counter()
     mentions_by_type: Dict[str, Counter] = defaultdict(Counter)
     for doc in docs:
         meta = doc.doc_metadata or {}
@@ -204,6 +210,7 @@ async def _build_knowledge_graph(
 
     resolver = EntityResolutionService()
     resolver.cluster_entities(mentions_by_type)
+    t_cluster = time.perf_counter() - t_cluster_start
     edge_weighting = EdgeWeightingService()
 
     live_nodes = []
@@ -219,6 +226,7 @@ async def _build_knowledge_graph(
     pair_relations: Dict[Tuple[str, str], Counter] = defaultdict(Counter)   # pair -> Counter(relations)
     pair_direction: Dict[Tuple[str, str], Tuple[str, str]] = {}             # pair -> (src_id, tgt_id)
 
+    t_assembly_start = time.perf_counter()
     for doc in docs:
         doc_id_str = str(doc.id)
         doc_node_id = f"doc_{doc_id_str[:8]}"
@@ -291,6 +299,9 @@ async def _build_knowledge_graph(
             rel_label = link.get("relation") or link.get("label") or "communication"
             pair_relations[pair_key][rel_label] += 1
 
+    t_assembly = time.perf_counter() - t_assembly_start
+
+    t_edges_start = time.perf_counter()
     live_edges = []
 
     # 1. Synthesize document-to-entity mentions edges
@@ -349,7 +360,9 @@ async def _build_knowledge_graph(
             }
         })
 
+    t_edges = time.perf_counter() - t_edges_start
 
+    t_centrality_start = time.perf_counter()
     if live_nodes:
         # Step 3: Compute real weighted degree centrality for entity nodes
         # Document nodes (type == 'document') retain their hardcoded importance (0.9).
@@ -378,7 +391,181 @@ async def _build_knowledge_graph(
             edges.append(dict(e))
         source_val = "mock_fallback"
 
+    t_centrality = time.perf_counter() - t_centrality_start
+    t_total = time.perf_counter() - t_start
+    logger.info(
+        f"[KnowledgeGraph Build Timings] t_db={t_db:.3f}s, t_cluster={t_cluster:.3f}s, "
+        f"t_assembly={t_assembly:.3f}s, t_edges={t_edges:.3f}s, t_centrality={t_centrality:.3f}s, "
+        f"total={t_total:.3f}s"
+    )
+
     return {"nodes": nodes, "edges": edges, "source": source_val}
+
+
+# ── Process-Local State-Fingerprinted Graph Cache ─────────────────────────────
+
+class GraphCache:
+    """
+    Process-local, in-memory, state-fingerprinted cache for Knowledge Graph responses.
+
+    ARCHITECTURAL TRADEOFF & CONSTRAINTS (Zero-Cost / Free-Tier Decision):
+    - This cache is process-local (in-memory dict with LRU eviction).
+    - It does NOT synchronize across multiple Uvicorn worker processes.
+      This is an explicitly accepted architectural tradeoff: the Knowledge Graph
+      is a read-heavy analytical/investigative view, not a security-critical
+      revocation path (such as JWT revocation).
+    - Automatic invalidation is guaranteed by the state fingerprint key: any document
+      insertion, deletion, or metadata update changes the (COUNT, MAX(updated_at))
+      fingerprint, cleanly bypassing stale entries without external coordination.
+    """
+
+    def __init__(self, max_entries: int = 32):
+        self._cache: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        self._keys_lru: List[Tuple[str, str, str]] = []
+        self._max_entries = max_entries
+        self.hits: int = 0
+        self.misses: int = 0
+
+    def get(self, key: Tuple[str, str, str]) -> Optional[Dict[str, Any]]:
+        if key in self._cache:
+            self.hits += 1
+            if key in self._keys_lru:
+                self._keys_lru.remove(key)
+            self._keys_lru.append(key)
+            cached = self._cache[key]
+            # Return shallow copy of node and edge lists to prevent in-place mutation
+            return {
+                "nodes": list(cached["nodes"]),
+                "edges": list(cached["edges"]),
+                "source": cached["source"]
+            }
+        self.misses += 1
+        return None
+
+    def set(self, key: Tuple[str, str, str], value: Dict[str, Any]) -> None:
+        if key in self._cache:
+            if key in self._keys_lru:
+                self._keys_lru.remove(key)
+        elif len(self._cache) >= self._max_entries:
+            oldest_key = self._keys_lru.pop(0)
+            self._cache.pop(oldest_key, None)
+
+        self._cache[key] = {
+            "nodes": list(value["nodes"]),
+            "edges": list(value["edges"]),
+            "source": value["source"]
+        }
+        self._keys_lru.append(key)
+
+    def clear(self) -> None:
+        self._cache.clear()
+        self._keys_lru.clear()
+        self.hits = 0
+        self.misses = 0
+
+    def stats(self) -> Dict[str, Any]:
+        return {
+            "hits": self.hits,
+            "misses": self.misses,
+            "size": len(self._cache),
+            "max_entries": self._max_entries,
+        }
+
+
+graph_cache = GraphCache(max_entries=32)
+
+
+def clear_graph_cache() -> None:
+    """Helper for testing and cache reset."""
+    graph_cache.clear()
+
+
+async def compute_graph_fingerprint(
+    db: AsyncSession,
+    current_user: TokenPayload,
+    case_id: Optional[uuid.UUID] = None,
+    limit: Optional[int] = None,
+) -> str:
+    """
+    Computes a lightweight state fingerprint for the current graph scope.
+    Executes a fast aggregate query (COUNT + MAX(updated_at)) taking ~1-2ms,
+    avoiding any loading or deserialization of heavy doc_metadata JSONB blobs.
+    """
+    from sqlalchemy import func
+    fp_stmt = (
+        select(
+            func.count(Document.id),
+            func.max(func.coalesce(Document.updated_at, Document.created_at))
+        )
+        .outerjoin(Case, Document.case_id == Case.id)
+        .where(Document.doc_metadata.isnot(None))
+    )
+    if case_id:
+        fp_stmt = fp_stmt.where(Document.case_id == case_id)
+    elif current_user.role != UserRole.ADMIN:
+        try:
+            user_uuid = uuid.UUID(current_user.sub)
+        except (ValueError, TypeError):
+            user_uuid = None
+        filter_cond = (Case.created_by == current_user.sub)
+        if user_uuid is not None:
+            filter_cond = filter_cond | ((Document.case_id.is_(None)) & (Document.uploaded_by == user_uuid))
+        fp_stmt = fp_stmt.where(filter_cond)
+
+    fp_res = await db.execute(fp_stmt)
+    count_val, max_dt = fp_res.first()
+    dt_str = max_dt.isoformat() if max_dt else "none"
+    return f"{count_val}_{dt_str}_{limit or 'all'}"
+
+
+async def get_knowledge_graph_cached(
+    db: AsyncSession,
+    current_user: TokenPayload,
+    case_id: Optional[uuid.UUID] = None,
+    limit: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Retrieves knowledge graph from in-memory cache if state fingerprint matches,
+    otherwise runs full _build_knowledge_graph and populates cache.
+    """
+    # Verify case access upfront
+    if case_id and current_user.role != UserRole.ADMIN:
+        case = await db.get(Case, case_id)
+        if not case or case.created_by != current_user.sub:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this case graph")
+
+    t_fp_start = time.perf_counter()
+    fingerprint = await compute_graph_fingerprint(db, current_user, case_id, limit)
+    t_fp = time.perf_counter() - t_fp_start
+
+    scope_case = str(case_id) if case_id else "global"
+    scope_user = current_user.sub if current_user.role != UserRole.ADMIN else "admin"
+    cache_key = (scope_case, scope_user, fingerprint)
+
+    cached = graph_cache.get(cache_key)
+    if cached is not None:
+        logger.info(
+            f"[KnowledgeGraph Cache HIT] key=({scope_case}, {scope_user}, {fingerprint}), "
+            f"lookup_time={t_fp*1000:.2f}ms, nodes={len(cached['nodes'])}, edges={len(cached['edges'])}"
+        )
+        return cached
+
+    logger.info(
+        f"[KnowledgeGraph Cache MISS] key=({scope_case}, {scope_user}, {fingerprint}), "
+        f"triggering full graph build"
+    )
+    built_graph = await _build_knowledge_graph(
+        db=db,
+        current_user=current_user,
+        case_id=case_id,
+        limit=limit,
+    )
+    graph_cache.set(cache_key, built_graph)
+    return {
+        "nodes": list(built_graph["nodes"]),
+        "edges": list(built_graph["edges"]),
+        "source": built_graph["source"],
+    }
 
 
 @router.get("", response_model=GraphResponse, summary="Get full knowledge graph data")
@@ -392,7 +579,7 @@ async def get_graph(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    graph_data = await _build_knowledge_graph(
+    graph_data = await get_knowledge_graph_cached(
         db=db,
         current_user=current_user,
         case_id=case_id,
@@ -439,7 +626,7 @@ async def expand_node(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    graph_data = await _build_knowledge_graph(
+    graph_data = await get_knowledge_graph_cached(
         db=db,
         current_user=current_user,
         case_id=case_id,
@@ -465,7 +652,7 @@ async def find_shortest_path(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    graph_data = await _build_knowledge_graph(
+    graph_data = await get_knowledge_graph_cached(
         db=db,
         current_user=current_user,
         case_id=case_id,

@@ -1,10 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Link, useParams, useLocation } from 'react-router-dom';
 import { FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface EvidenceLinkProps {
   documentId: string;
   filename: string;
+  caseId?: string;
+  returnTab?: string;
   className?: string;
   showIcon?: boolean;
   showExternalIcon?: boolean;
@@ -15,6 +17,8 @@ export interface EvidenceLinkProps {
 export function EvidenceLink({
   documentId,
   filename,
+  caseId,
+  returnTab,
   className,
   showIcon = true,
   showExternalIcon = true,
@@ -22,11 +26,20 @@ export function EvidenceLink({
   title,
 }: EvidenceLinkProps) {
   const defaultTitle = title || `View source document: ${filename}`;
+  const routeParams = useParams<{ caseId?: string }>();
+  const location = useLocation();
+
+  const activeCaseId = caseId || routeParams.caseId;
+  const currentTab = location.pathname.split('/').filter(Boolean).pop() || 'evidence';
+  const activeReturnTab = returnTab || (currentTab !== activeCaseId ? currentTab : 'evidence');
+
+  const navState = activeCaseId ? { caseId: activeCaseId, returnTab: activeReturnTab } : undefined;
 
   if (variant === 'badge') {
     return (
       <Link
         to={`/documents/${documentId}`}
+        state={navState}
         title={defaultTitle}
         className={cn(
           'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium font-mono',
@@ -48,6 +61,7 @@ export function EvidenceLink({
     return (
       <Link
         to={`/documents/${documentId}`}
+        state={navState}
         title={defaultTitle}
         className={cn(
           'inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors group truncate',
@@ -64,6 +78,7 @@ export function EvidenceLink({
   return (
     <Link
       to={`/documents/${documentId}`}
+      state={navState}
       title={defaultTitle}
       className={cn(
         'inline-flex items-center gap-1.5 text-xs font-semibold text-slate-200 hover:text-indigo-300 transition-colors group truncate',

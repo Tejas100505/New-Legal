@@ -99,6 +99,9 @@ export function CaseWorkspaceLayout() {
     : caseData?.status === 'created' ? 'info'
     : 'default';
 
+  const activeTabObj = CASE_TABS.find((t) => location.pathname.includes(`/${t.path}`)) || CASE_TABS[0];
+  const currentSectionName = activeTabObj.label;
+
   return (
     <CaseWorkspaceContext.Provider
       value={{
@@ -114,24 +117,40 @@ export function CaseWorkspaceLayout() {
         <div className="rounded-2xl bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-slate-950/90 border border-slate-800/80 p-5 shadow-lg backdrop-blur-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/cases"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors mr-2"
-                  id="case-back-link"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>All Cases</span>
-                </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <nav aria-label="Case Breadcrumb" className="inline-flex items-center gap-1.5 text-xs text-slate-400 mr-2">
+                  <Link
+                    to="/cases"
+                    className="inline-flex items-center gap-1 text-slate-400 hover:text-indigo-400 font-medium transition-colors"
+                    id="case-back-link"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    <span>Cases</span>
+                  </Link>
+                  <span className="text-slate-600">/</span>
+                  <Link
+                    to={`/cases/${caseId}/overview`}
+                    className="text-slate-400 hover:text-indigo-400 font-medium transition-colors max-w-[200px] sm:max-w-[320px] truncate"
+                    id="case-breadcrumb-name"
+                    title={caseData?.name || 'Case Overview'}
+                  >
+                    {caseData?.name || (isLoading ? 'Loading...' : 'Case Overview')}
+                  </Link>
+                  <span className="text-slate-600">/</span>
+                  <span className="text-indigo-400 font-semibold" aria-current="page" id="case-breadcrumb-section">
+                    {currentSectionName}
+                  </span>
+                </nav>
+
                 {caseData && (
-                  <>
+                  <div className="flex items-center gap-1.5">
                     <Badge variant={statusVariant} size="xs" dot>
                       {caseData.status.replace(/_/g, ' ').toUpperCase()}
                     </Badge>
                     <Badge variant={priorityVariant} size="xs">
                       {caseData.priority.toUpperCase()} PRIORITY
                     </Badge>
-                  </>
+                  </div>
                 )}
               </div>
 

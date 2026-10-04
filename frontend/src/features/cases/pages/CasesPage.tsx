@@ -69,24 +69,26 @@ export function CasesPage() {
   async function fetchCases() {
     setIsLoading(true);
     try {
-      const [casesRes, docsRes] = await Promise.all([
-        api.get('/cases'),
-        api.get('/documents?page_size=1000').catch(() => ({ data: { documents: [] } })),
-      ]);
-      const rawDocs = docsRes.data?.documents || [];
-      const casesList = casesRes.data?.cases || [];
+      const firstPageRes = await api.get('/cases?page=1&page_size=100');
+      const totalCases = firstPageRes.data?.total || 0;
+      let casesList = firstPageRes.data?.cases || [];
 
-      // Map API response to expected LegalCase format with real document aggregates
+      if (totalCases > 100) {
+        const remainingPages = Math.ceil(totalCases / 100);
+        const pageReqs = [];
+        for (let p = 2; p <= remainingPages; p++) {
+          pageReqs.push(api.get(`/cases?page=${p}&page_size=100`).catch(() => ({ data: { cases: [] } })));
+        }
+        const extraRes = await Promise.all(pageReqs);
+        for (const res of extraRes) {
+          if (res.data?.cases) {
+            casesList = casesList.concat(res.data.cases);
+          }
+        }
+      }
+
+      // Map API response to expected LegalCase format with real case data
       const mapped: LegalCase[] = casesList.map((c: any) => {
-        // Match documents by case_id, or if there's only 1 primary case associate all current inquiry docs
-        const caseDocs = rawDocs.filter((d: any) => d.case_id === c.id || (!d.case_id && casesList.length === 1));
-        const docCount = caseDocs.length;
-        const hasCritical = caseDocs.some((d: any) => d.doc_metadata?.risk?.overall_risk === 'CRITICAL');
-        const hasHigh = caseDocs.some((d: any) => d.doc_metadata?.risk?.overall_risk === 'HIGH');
-        const hasMed = caseDocs.some((d: any) => d.doc_metadata?.risk?.overall_risk === 'MEDIUM');
-        const riskLevel = hasCritical ? 'critical' : hasHigh ? 'high' : hasMed ? 'medium' : (docCount > 0 ? 'low' : 'none');
-        const evidenceCount = caseDocs.reduce((sum: number, d: any) => sum + (d.doc_metadata?.entities?.length || 1), 0);
-
         return {
           id: c.id,
           name: c.name,
@@ -94,12 +96,12 @@ export function CasesPage() {
           description: c.description || '',
           status: c.status as CaseStatus,
           priority: (c.priority || 'high') as CasePriority,
-          riskLevel,
+          riskLevel: (c.risk_level || 'none') as any,
           createdAt: c.created_at,
           updatedAt: c.updated_at,
           tags: c.tags || [],
-          documentCount: docCount,
-          evidenceCount,
+          documentCount: c.document_count || 0,
+          evidenceCount: c.evidence_count || 0,
         };
       });
       setCases(mapped);
@@ -242,8 +244,17 @@ export function CasesPage() {
             <motion.div key={c.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
               <div 
                 onClick={() => navigate(`/cases/${c.id}/overview`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate(`/cases/${c.id}/overview`);
+                  }
+                }}
+                aria-label={`Open case ${c.name}`}
                 className={cn(
-                  'group rounded-xl p-5 h-full',
+                  'group rounded-xl p-5 h-full focus:outline-none focus:ring-2 focus:ring-indigo-500/50',
                   'bg-slate-900/50 backdrop-blur-xl border border-slate-800/50',
                   'hover:border-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/5',
                   'hover:-translate-y-0.5 transition-all duration-300 cursor-pointer'

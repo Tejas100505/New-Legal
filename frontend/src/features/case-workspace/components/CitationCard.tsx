@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { FileText, ExternalLink, Hash, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CitationItem } from '../hooks/useCaseAsk';
@@ -11,6 +11,7 @@ interface CitationCardProps {
 }
 
 export function CitationCard({ item, label, highlighted = false, className }: CitationCardProps) {
+  const { caseId } = useParams<{ caseId?: string }>();
   const cardId = label ? `citation-card-${label.replace(/[[\]]/g, '')}` : `citation-card-${item.chunk_id}`;
 
   return (
@@ -36,6 +37,7 @@ export function CitationCard({ item, label, highlighted = false, className }: Ci
 
           <Link
             to={`/documents/${item.document_id}`}
+            state={caseId ? { caseId, returnTab: 'ask' } : undefined}
             title={`View source document: ${item.filename}`}
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-200 hover:text-indigo-300 transition-colors truncate max-w-[280px] sm:max-w-[360px]"
           >

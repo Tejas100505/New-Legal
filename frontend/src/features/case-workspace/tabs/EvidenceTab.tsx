@@ -2,7 +2,7 @@ import { useCaseWorkspace } from '../CaseWorkspaceContext';
 import { DocumentsPage } from '@/features/documents/pages/DocumentsPage';
 
 export function EvidenceTab() {
-  const { caseId } = useCaseWorkspace();
+  const { caseId, caseData } = useCaseWorkspace();
 
-  return <DocumentsPage caseId={caseId} />;
+  return <DocumentsPage caseId={caseId} caseName={caseData?.name} />;
 }

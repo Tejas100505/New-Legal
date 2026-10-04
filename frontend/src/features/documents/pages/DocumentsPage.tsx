@@ -36,9 +36,10 @@ const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' 
 
 interface DocumentsPageProps {
   caseId?: string;
+  caseName?: string;
 }
 
-export function DocumentsPage({ caseId }: DocumentsPageProps = {}) {
+export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -76,7 +77,7 @@ export function DocumentsPage({ caseId }: DocumentsPageProps = {}) {
       size: d.file_size,
       status: d.status === 'ocr_processing' ? 'processing' : d.status,
       caseId: d.case_id || 'case_unknown',
-      caseName: 'General Matter',
+      caseName: caseName || d.case_name || (caseId ? `Case ${caseId.slice(0, 8)}` : 'All Documents'),
       ocrAccuracy: metadata.confidence_score ?? null,
       ocrConfidence: metadata.confidence_score != null ? (metadata.confidence_score > 0.85 ? 'high' : 'medium') : 'medium',
       pageCount: d.page_count || 1,
@@ -694,7 +695,17 @@ export function DocumentsPage({ caseId }: DocumentsPageProps = {}) {
               {/* Action Buttons */}
               <div className="space-y-2 mb-4">
                 <button
-                  onClick={() => navigate(`/documents/${selectedDoc.id}`)}
+                  onClick={() => {
+                    const targetCaseId = caseId || (selectedDoc.caseId !== 'case_unknown' ? selectedDoc.caseId : undefined);
+                    navigate(`/documents/${selectedDoc.id}`, {
+                      state: {
+                        caseId: targetCaseId,
+                        caseName: selectedDoc.caseName,
+                        returnTab: 'evidence',
+                      },
+                    });
+                  }}
+                  id="launch-review-workspace-btn"
                   className="w-full py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
                 >
                   Launch Review Workspace

@@ -1,14 +1,15 @@
 /**
- * DocumentsPage — full document management with library, filters, and preview panel.
+ * DocumentsPage — full document management with library, filters, server-side pagination, and intelligence preview.
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Upload, Grid3x3, List, Filter, Search, Tag,
+  Upload, Grid3x3, List, Filter, Search,
   X, CloudUpload, CheckCircle2, AlertCircle, File,
-  Clock, Loader2,
+  Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ShieldAlert, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDate, formatFileSize } from '@/lib/utils';
@@ -19,15 +20,17 @@ import { FileIcon } from '@/components/molecules/FileIcon';
 import type { LegalDocument } from '@/types';
 import api from '@/lib/api';
 
-type ViewMode = 'grid' | 'list';
+type ViewMode = 'list' | 'grid';
 type FilterStatus = 'all' | 'uploaded' | 'processing' | 'analyzed' | 'reviewed' | 'flagged' | 'quota_paused';
 
 const statusConfig: Record<string, { variant: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple'; label: string }> = {
   uploaded: { variant: 'warning', label: 'Queued' },
-  processing: { variant: 'warning', label: 'Processing (30–60s)' },
-  ocr_processing: { variant: 'warning', label: 'Processing (30–60s)' },
-  ocr_complete: { variant: 'info', label: 'OCR Done' },
-  analyzed: { variant: 'success', label: 'Analyzed' },
+  validating: { variant: 'warning', label: 'Validating' },
+  processing: { variant: 'warning', label: 'Processing' },
+  ocr_processing: { variant: 'warning', label: 'OCR Processing' },
+  chunking: { variant: 'warning', label: 'Chunking' },
+  embedding: { variant: 'warning', label: 'Embedding' },
+  analyzing: { variant: 'warning', label: 'Analyzing' },
   reviewed: { variant: 'purple', label: 'Reviewed' },
   flagged: { variant: 'danger', label: 'Flagged' },
   error: { variant: 'danger', label: 'Error' },
@@ -39,7 +42,9 @@ interface DocumentsPageProps {
   caseName?: string;
 }
 
-export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
+export function DocumentsPage({ caseId: propCaseId, caseName }: DocumentsPageProps = {}) {
+  const routeParams = useParams<{ caseId?: string }>();
+  const caseId = propCaseId || routeParams.caseId;
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -47,7 +52,6 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
   const [selectedDoc, setSelectedDoc] = useState<LegalDocument | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [uploadFiles, setUploadFiles] = useState<{
     name: string;
     size: number;
@@ -57,29 +61,40 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
     docId?: string;
   }[]>([]);
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
-  const [, setLoadingDocs] = useState(true);
+  const [totalDocs, setTotalDocs] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [loadingDocs, setLoadingDocs] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  const mapDocResponse = (d: any): LegalDocument => {
+  const mapDocResponse = useCallback((d: any): LegalDocument => {
     const metadata = d.doc_metadata || {};
-    const privilege = metadata.privilege || {};
-    const risk = metadata.risk || {};
+    const privilege = metadata.privilege_analysis || metadata.privilege || {};
+    const risk = metadata.risk_analysis || metadata.risk || {};
     
     let docType: any = 'pdf';
-    if (d.content_type.includes('docx') || d.original_filename.endsWith('.docx')) docType = 'docx';
-    else if (d.content_type.includes('email') || d.content_type.includes('rfc822') || d.original_filename.endsWith('.eml')) docType = 'email';
-    else if (d.content_type.includes('text') || d.original_filename.endsWith('.txt')) docType = 'txt';
+    const ctype = (d.content_type || '').toLowerCase();
+    const fname = (d.original_filename || '').toLowerCase();
+    if (ctype.includes('docx') || fname.endsWith('.docx')) docType = 'docx';
+    else if (ctype.includes('email') || ctype.includes('rfc822') || fname.endsWith('.eml')) docType = 'email';
+    else if (ctype.includes('text') || fname.endsWith('.txt')) docType = 'txt';
+
+    const rawConfidence = metadata.confidence_score ?? metadata.pipeline?.ocr?.confidence ?? null;
+    const ocrAccuracy = rawConfidence != null ? Math.round(Number(rawConfidence) * 100) : 0;
+
+    const isPriv = Boolean(privilege.is_privileged ?? d.is_privileged);
+    const riskTier = (risk.risk_level || risk.overall_risk || (isPriv ? 'critical' : 'low')).toLowerCase();
 
     return {
       id: d.id,
-      name: d.original_filename,
+      name: d.original_filename || d.filename || 'Document',
       type: docType,
-      size: d.file_size,
-      status: d.status === 'ocr_processing' ? 'processing' : d.status,
-      caseId: d.case_id || 'case_unknown',
+      size: d.file_size || 0,
+      status: d.status,
+      caseId: d.case_id || caseId || 'case_unknown',
       caseName: caseName || d.case_name || (caseId ? `Case ${caseId.slice(0, 8)}` : 'All Documents'),
-      ocrAccuracy: metadata.confidence_score ?? null,
-      ocrConfidence: metadata.confidence_score != null ? (metadata.confidence_score > 0.85 ? 'high' : 'medium') : 'medium',
+      ocrAccuracy,
+      ocrConfidence: rawConfidence != null ? (rawConfidence > 0.85 ? 'high' : 'medium') : 'medium',
       pageCount: d.page_count || 1,
       entityCount: metadata.entities ? Object.values(metadata.entities).flat().length : 0,
       uploadedBy: d.uploaded_by ? String(d.uploaded_by).slice(0, 8) : 'Owner',
@@ -87,10 +102,10 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
       processedAt: d.updated_at || null,
       tags: metadata.tags || (metadata.document_type ? [metadata.document_type] : []),
       version: metadata.version || 1,
-      isPrivileged: privilege.is_privileged || false,
-      riskLevel: (risk.overall_risk || 'none').toLowerCase() as any,
+      isPrivileged: isPriv,
+      riskLevel: riskTier as any,
       extractedEntities: metadata.entities ? Object.entries(metadata.entities).flatMap(([type, texts]) => 
-        (texts as string[]).map((text, i) => ({
+        (Array.isArray(texts) ? texts : []).map((text, i) => ({
           id: `${type}-${i}`,
           type,
           text,
@@ -99,32 +114,44 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
       ) : [],
       doc_metadata: metadata,
     };
-  };
+  }, [caseId, caseName]);
 
   const fetchDocuments = useCallback(async () => {
     try {
       setLoadingDocs(true);
-      const params: Record<string, string> = {};
+      const params: Record<string, any> = {
+        page,
+        page_size: pageSize,
+        include_content: false,
+      };
       if (caseId) params.case_id = caseId;
       const response = await api.get('/documents', { params });
-      const docs = response.data.documents.map(mapDocResponse);
+      const rawDocs = response.data.documents || [];
+      const docs = rawDocs.map(mapDocResponse);
       setDocuments(docs);
+      setTotalDocs(response.data.total ?? docs.length);
     } catch (err) {
       console.error("Failed to load documents:", err);
       setDocuments([]);
+      setTotalDocs(0);
     } finally {
       setLoadingDocs(false);
     }
-  }, [caseId]);
+  }, [caseId, page, pageSize, mapDocResponse]);
 
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  // Reset page to 1 when caseId changes
+  useEffect(() => {
+    setPage(1);
+  }, [caseId]);
+
   // Real-time polling while any document is undergoing background AI processing
   useEffect(() => {
     const hasPendingDocs = documents.some((d) =>
-      ['processing', 'ocr_processing', 'uploaded'].includes(d.status)
+      ['processing', 'ocr_processing', 'validating', 'chunking', 'embedding', 'analyzing', 'uploaded'].includes(d.status)
     );
     const hasPendingUploads = uploadFiles.some((f) => f.status === 'processing');
 
@@ -132,14 +159,18 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
 
     const interval = setInterval(async () => {
       try {
-        const params: Record<string, string> = {};
+        const params: Record<string, any> = {
+          page,
+          page_size: pageSize,
+          include_content: false,
+        };
         if (caseId) params.case_id = caseId;
         const response = await api.get('/documents', { params });
         const rawDocs = response.data.documents || [];
         const mapped = rawDocs.map(mapDocResponse);
         setDocuments(mapped);
+        setTotalDocs(response.data.total ?? mapped.length);
 
-        // Update upload cards with dynamic stage messaging as processing proceeds
         setUploadFiles((prev) =>
           prev.map((f) => {
             if (f.status !== 'processing') return f;
@@ -150,12 +181,6 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
             if (match && match.status === 'error') {
               return { ...f, status: 'error', message: 'Analysis encountered an error.' };
             }
-            if (match && match.status === 'ocr_complete') {
-              return { ...f, message: 'Stage 2/3: OCR complete. Screening attorney-client privilege & evaluating risk...' };
-            }
-            if (match && (match.status === 'ocr_processing' || match.status === 'processing')) {
-              return { ...f, message: 'Stage 1/3: Ingested. Extracting text & running entity recognition (30–60s)...' };
-            }
             return f;
           })
         );
@@ -165,16 +190,17 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [documents, uploadFiles, caseId]);
-
-  const allTags = [...new Set(documents.flatMap((d) => d.tags))];
+  }, [documents, uploadFiles, caseId, page, pageSize]);
 
   const filteredDocs = documents.filter((doc) => {
     if (filterStatus !== 'all' && doc.status !== filterStatus) return false;
     if (searchQuery && !doc.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (selectedTags.length > 0 && !selectedTags.some((t) => doc.tags.includes(t))) return false;
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(totalDocs / pageSize));
+  const startItem = totalDocs === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(totalDocs, page * pageSize);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -191,18 +217,13 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
       status: 'uploading' as const,
     }));
     
-    // Add to state
     setUploadFiles((prev) => [...prev, ...newFiles]);
     setShowUpload(true);
-    
     const currentLength = uploadFiles.length;
 
     if (files.length > 1) {
       const formData = new FormData();
-      files.forEach((file) => {
-        formData.append('files', file);
-      });
-
+      files.forEach((file) => formData.append('files', file));
       const uploadUrl = caseId
         ? `/documents/upload-multiple?case_id=${encodeURIComponent(caseId)}`
         : '/documents/upload-multiple';
@@ -240,7 +261,7 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
                   progress: 100,
                   status: 'processing',
                   docId: match.id,
-                  message: 'File stored. Running 10-stage AI legal review (typically 30–60s)...',
+                  message: 'File stored. Running AI legal analysis pipeline...',
                 };
               } else {
                 return {
@@ -253,29 +274,18 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
             return f;
           })
         );
-
         fetchDocuments();
       } catch (err) {
         console.error('Batch upload failed', err);
-        setUploadFiles((prev) =>
-          prev.map((f, i) =>
-            i >= currentLength && i < currentLength + files.length
-              ? { ...f, status: 'error', message: 'Batch upload failed. Please check file format and connection.' }
-              : f
-          )
-        );
       }
       return;
     }
 
-    // Single-file upload fallback
-    for (let idx = 0; idx < files.length; idx++) {
-      const file = files[idx];
-      const totalIdx = currentLength + idx;
-      
+    // Single-file upload
+    if (files.length === 1) {
+      const file = files[0];
       const formData = new FormData();
       formData.append('file', file);
-      
       try {
         const uploadUrl = caseId ? `/documents/upload?case_id=${encodeURIComponent(caseId)}` : '/documents/upload';
         const uploadRes = await api.post(uploadUrl, formData, {
@@ -284,44 +294,48 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
             if (progressEvent.total) {
               const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
               setUploadFiles((prev) =>
-                prev.map((f, i) => i === totalIdx ? { ...f, progress: percentCompleted } : f)
+                prev.map((f, i) => i === currentLength ? { ...f, progress: percentCompleted } : f)
               );
             }
           }
         });
-        
         const uploadedDoc = uploadRes.data;
-        const docId = uploadedDoc?.id || (Array.isArray(uploadedDoc) ? uploadedDoc[0]?.id : undefined);
-
+        const docId = uploadedDoc?.id;
         setUploadFiles((prev) =>
           prev.map((f, i) =>
-            i === totalIdx
+            i === currentLength
               ? {
                   ...f,
                   progress: 100,
                   status: 'processing',
                   docId,
-                  message: 'File stored. Running 10-stage AI legal review (typically 30–60s)...',
+                  message: 'File stored. Running AI legal review...',
                 }
               : f
           )
         );
-        
         fetchDocuments();
-        
       } catch (err) {
         console.error("Upload failed", err);
-        setUploadFiles((prev) =>
-          prev.map((f, i) => i === totalIdx ? { ...f, status: 'error', message: 'Upload failed. Please check file format and connection.' } : f)
-        );
       }
     }
   }
 
+  const navigateToViewer = (doc: LegalDocument) => {
+    const targetCaseId = caseId || (doc.caseId !== 'case_unknown' ? doc.caseId : undefined);
+    navigate(`/documents/${doc.id}`, {
+      state: {
+        caseId: targetCaseId,
+        caseName: doc.caseName,
+        returnTab: 'evidence',
+      },
+    });
+  };
+
   return (
     <PageShell
-      title="Documents"
-      description="Upload, manage, and review legal documents with AI-powered analysis."
+      title="Documents & Evidence Library"
+      description={`Case corpus index containing ${totalDocs} legal documents, filings, and evidence files.`}
       fullWidth
       actions={
         <div className="flex items-center gap-2">
@@ -332,11 +346,11 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
               'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium',
               'bg-gradient-to-r from-indigo-500 to-violet-500 text-white',
               'shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40',
-              'hover:brightness-110 transition-all duration-200'
+              'hover:brightness-110 transition-all duration-200 cursor-pointer'
             )}
           >
             <Upload className="h-4 w-4" />
-            Upload
+            Upload Evidence
           </button>
         </div>
       }
@@ -350,13 +364,10 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className={cn(
-              'rounded-xl p-5 mb-4',
-              'bg-slate-900/50 backdrop-blur-xl border border-slate-800/50'
-            )}>
+            <div className="rounded-xl p-5 mb-4 bg-slate-900/50 backdrop-blur-xl border border-slate-800/50">
               <label
                 className={cn(
-                  'flex flex-col items-center justify-center py-12 px-6',
+                  'flex flex-col items-center justify-center py-10 px-6',
                   'border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300',
                   dragActive
                     ? 'border-indigo-500 bg-indigo-500/5 shadow-lg shadow-indigo-500/10'
@@ -370,7 +381,7 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
                 <p className="text-sm font-medium text-slate-300 mb-1">
                   {dragActive ? 'Drop files here' : 'Drag & drop files, or click to browse'}
                 </p>
-                <p className="text-xs text-slate-500">PDF, DOCX, TXT, EML, XLSX — up to 100 MB per file</p>
+                <p className="text-xs text-slate-500">PDF, DOCX, TXT, EML — automatic text extraction & privilege screening</p>
                 <input type="file" className="hidden" multiple accept=".pdf,.docx,.txt,.eml,.xlsx" onChange={(e) => e.target.files && handleRealUpload(Array.from(e.target.files))} />
               </label>
 
@@ -419,35 +430,8 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
         )}
       </AnimatePresence>
 
-      {/* Real-time processing banner when documents are undergoing background AI review */}
-      {documents.some((d) => ['processing', 'ocr_processing', 'uploaded'].includes(d.status)) && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 p-4 mb-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-200"
-        >
-          <Loader2 className="h-5 w-5 animate-spin text-indigo-400 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-indigo-300">
-                AI Document Review in Progress
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                Typically 30–60s
-              </span>
-            </div>
-            <p className="text-[11px] text-indigo-200/80 mt-0.5 leading-relaxed">
-              Extracting text, identifying legal entities, and screening for attorney-client privilege. This background review typically takes 30–60 seconds per document. This page updates automatically.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
       {/* Filters Bar */}
-      <div className={cn(
-        'flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl mb-4',
-        'bg-slate-900/50 backdrop-blur-xl border border-slate-800/50'
-      )}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl mb-4 bg-slate-900/50 backdrop-blur-xl border border-slate-800/50">
         {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -455,20 +439,20 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search documents..."
+            placeholder="Search documents on this page..."
             className="w-full pl-10 pr-4 py-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
           />
         </div>
 
         {/* Status Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-slate-500" />
-          {(['all', 'analyzed', 'processing', 'flagged', 'reviewed', 'quota_paused'] as FilterStatus[]).map((status) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Filter className="h-4 w-4 text-slate-500 mr-1" />
+          {(['all', 'reviewed', 'flagged', 'quota_paused'] as FilterStatus[]).map((status) => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
                 filterStatus === status
                   ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -483,14 +467,14 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
         <div className="flex items-center gap-1 bg-slate-800/50 rounded-lg p-0.5">
           <button
             onClick={() => setViewMode('list')}
-            className={cn('p-1.5 rounded-md transition-colors', viewMode === 'list' ? 'bg-slate-700 text-slate-200' : 'text-slate-500')}
+            className={cn('p-1.5 rounded-md transition-colors cursor-pointer', viewMode === 'list' ? 'bg-slate-700 text-slate-200' : 'text-slate-500')}
             aria-label="List view"
           >
             <List className="h-4 w-4" />
           </button>
           <button
             onClick={() => setViewMode('grid')}
-            className={cn('p-1.5 rounded-md transition-colors', viewMode === 'grid' ? 'bg-slate-700 text-slate-200' : 'text-slate-500')}
+            className={cn('p-1.5 rounded-md transition-colors cursor-pointer', viewMode === 'grid' ? 'bg-slate-700 text-slate-200' : 'text-slate-500')}
             aria-label="Grid view"
           >
             <Grid3x3 className="h-4 w-4" />
@@ -498,85 +482,126 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
         </div>
       </div>
 
-      {/* Tags */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {allTags.map((tag) => (
-          <button
-            key={tag}
-            onClick={() => setSelectedTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])}
-            className={cn(
-              'flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors',
-              selectedTags.includes(tag)
-                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                : 'bg-slate-800/40 text-slate-500 hover:text-slate-300 border border-transparent'
-            )}
-          >
-            <Tag className="h-3 w-3" />
-            {tag}
-          </button>
-        ))}
-        {selectedTags.length > 0 && (
-          <button
-            onClick={() => setSelectedTags([])}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-slate-300"
-          >
-            <X className="h-3 w-3" />
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Document Library + Preview */}
+      {/* Document Library + Preview Drawer */}
       <div className="flex gap-4">
-        {/* Document List */}
-        <div className={cn('flex-1 min-w-0', selectedDoc && 'hidden lg:block')}>
-          {viewMode === 'list' ? (
-            <div className="rounded-xl border border-slate-800/50 overflow-hidden">
+        {/* Document List / Grid */}
+        <div className={cn('flex-1 min-w-0', selectedDoc && 'hidden xl:block')}>
+          {loadingDocs ? (
+            <div className="rounded-xl border border-slate-800/50 p-16 text-center flex flex-col items-center justify-center space-y-3">
+              <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+              <p className="text-xs text-slate-400">Loading case documents (Page {page})...</p>
+            </div>
+          ) : viewMode === 'list' ? (
+            <div className="rounded-xl border border-slate-800/50 overflow-hidden bg-slate-900/30">
               {/* Table header */}
-              <div className="grid grid-cols-[1fr_120px_100px_100px_80px] gap-4 px-4 py-3 bg-slate-900/80 border-b border-slate-800/50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_90px_100px_100px_90px_70px_80px_90px] gap-3 px-4 py-3 bg-slate-900/80 border-b border-slate-800/60 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 <span>Document</span>
-                <span>Case</span>
+                <span>Type</span>
                 <span>Status</span>
-                <span>OCR</span>
+                <span>Privilege</span>
+                <span>Risk</span>
+                <span>Pages</span>
                 <span>Size</span>
+                <span className="text-right">Action</span>
               </div>
-              {filteredDocs.map((doc, i) => (
-                <motion.div
-                  key={doc.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  onClick={() => setSelectedDoc(doc)}
-                  className={cn(
-                    'grid grid-cols-[1fr_120px_100px_100px_80px] gap-4 px-4 py-3 items-center',
-                    'border-b border-slate-800/30 cursor-pointer transition-colors',
-                    selectedDoc?.id === doc.id ? 'bg-indigo-500/5' : 'hover:bg-slate-800/20'
-                  )}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileIcon type={doc.type} size="sm" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-200 truncate">{doc.name}</p>
-                      <p className="text-xs text-slate-600 truncate">{doc.tags.join(', ')}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-slate-500 truncate">{doc.caseName.split('—')[0].trim()}</span>
-                  <Badge variant={statusConfig[doc.status]?.variant || 'default'} size="xs" dot pulse={doc.status === 'processing'}>
-                    {statusConfig[doc.status]?.label || doc.status}
-                  </Badge>
-                  <div>
-                    {doc.ocrAccuracy > 0 ? (
-                      <div className="flex items-center gap-1.5">
-                        <ProgressBar value={doc.ocrAccuracy} size="xs" variant={doc.ocrAccuracy > 95 ? 'success' : 'warning'} className="w-12" />
-                        <span className="text-xs text-slate-400">{doc.ocrAccuracy}%</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-600">—</span>
+
+              {filteredDocs.length === 0 ? (
+                <div className="p-12 text-center text-slate-500 text-xs">
+                  No documents found matching current filter criteria on this page.
+                </div>
+              ) : (
+                filteredDocs.map((doc, i) => (
+                  <motion.div
+                    key={doc.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.015 }}
+                    onClick={() => setSelectedDoc(doc)}
+                    className={cn(
+                      'grid grid-cols-[1fr_90px_100px_100px_90px_70px_80px_90px] gap-3 px-4 py-3 items-center',
+                      'border-b border-slate-800/30 cursor-pointer transition-colors',
+                      selectedDoc?.id === doc.id ? 'bg-indigo-500/10' : 'hover:bg-slate-800/30'
                     )}
-                  </div>
-                  <span className="text-xs text-slate-500">{formatFileSize(doc.size)}</span>
-                </motion.div>
-              ))}
+                  >
+                    {/* Document Name */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileIcon type={doc.type} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-200 truncate" title={doc.name}>
+                          {doc.name}
+                        </p>
+                        <p className="text-[10px] text-slate-500 truncate">
+                          {formatDate(doc.uploadedAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* File Type */}
+                    <Badge variant="outline" size="xs" className="uppercase font-mono">
+                      {doc.type}
+                    </Badge>
+
+                    {/* Status */}
+                    <div>
+                      <Badge
+                        variant={statusConfig[doc.status]?.variant || 'default'}
+                        size="xs"
+                        dot
+                      >
+                        {statusConfig[doc.status]?.label || doc.status}
+                      </Badge>
+                    </div>
+
+                    {/* Privilege */}
+                    <div>
+                      {doc.isPrivileged ? (
+                        <Badge variant="danger" size="xs" className="flex items-center gap-1">
+                          <ShieldAlert className="h-3 w-3" /> Privileged
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] text-slate-500">—</span>
+                      )}
+                    </div>
+
+                    {/* Risk */}
+                    <div>
+                      <Badge
+                        variant={
+                          doc.riskLevel === 'critical'
+                            ? 'danger'
+                            : doc.riskLevel === 'high'
+                            ? 'warning'
+                            : 'default'
+                        }
+                        size="xs"
+                        className="uppercase"
+                      >
+                        {doc.riskLevel}
+                      </Badge>
+                    </div>
+
+                    {/* Pages */}
+                    <span className="text-xs text-slate-400">{doc.pageCount} p.</span>
+
+                    {/* Size */}
+                    <span className="text-xs text-slate-400 font-mono">{formatFileSize(doc.size)}</span>
+
+                    {/* Direct Review Link */}
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateToViewer(doc);
+                        }}
+                        className="px-2.5 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 text-xs font-medium transition-colors cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <Eye className="h-3 w-3" /> Review
+                      </button>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -585,39 +610,113 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
                   key={doc.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
+                  transition={{ delay: i * 0.02 }}
                   onClick={() => setSelectedDoc(doc)}
                   className={cn(
                     'rounded-xl p-4 cursor-pointer',
                     'bg-slate-900/50 border border-slate-800/50',
                     'hover:border-indigo-500/20 hover:-translate-y-0.5',
-                    'transition-all duration-300',
-                    selectedDoc?.id === doc.id && 'border-indigo-500/30 shadow-lg shadow-indigo-500/5'
+                    'transition-all duration-200',
+                    selectedDoc?.id === doc.id && 'border-indigo-500/40 shadow-lg shadow-indigo-500/5'
                   )}
                 >
                   <div className="flex items-start gap-3 mb-3">
                     <FileIcon type={doc.type} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-200 truncate">{doc.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{doc.caseName}</p>
+                      <p className="text-xs font-semibold text-slate-200 truncate" title={doc.name}>{doc.name}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{formatDate(doc.uploadedAt)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <Badge variant={statusConfig[doc.status]?.variant || 'default'} size="xs">
-                      {statusConfig[doc.status]?.label || doc.status}
-                    </Badge>
-                    <span className="text-xs text-slate-600">{formatFileSize(doc.size)}</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={statusConfig[doc.status]?.variant || 'default'} size="xs">
+                        {statusConfig[doc.status]?.label || doc.status}
+                      </Badge>
+                      {doc.isPrivileged && (
+                        <Badge variant="danger" size="xs">Privileged</Badge>
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono">{formatFileSize(doc.size)}</span>
                   </div>
-                  {doc.ocrAccuracy > 0 && (
-                    <ProgressBar value={doc.ocrAccuracy} size="xs" className="mt-3" variant={doc.ocrAccuracy > 95 ? 'success' : 'warning'} />
-                  )}
                 </motion.div>
               ))}
             </div>
           )}
+
+          {/* ── Server-Side Pagination Bar ───────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 mt-4 rounded-xl bg-slate-900/40 border border-slate-800/50 text-xs text-slate-400">
+            <div>
+              Showing <span className="font-semibold text-slate-200">{startItem}–{endItem}</span> of{' '}
+              <span className="font-semibold text-slate-200">{totalDocs}</span> documents in matter
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Page Size Selector */}
+              <div className="flex items-center gap-2">
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+
+              {/* Navigation Controls */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage(1)}
+                  disabled={page <= 1}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-slate-850 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  title="First page"
+                >
+                  <ChevronsLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-slate-850 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+
+                <span className="px-3 py-1 font-medium text-slate-200">
+                  Page {page} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-slate-850 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  title="Next page"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage(totalPages)}
+                  disabled={page >= totalPages}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-slate-850 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  title="Last page"
+                >
+                  <ChevronsRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Preview Panel */}
+        {/* Selected Document Preview Drawer */}
         <AnimatePresence>
           {selectedDoc && (
             <motion.div
@@ -625,52 +724,52 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               className={cn(
-                'w-full lg:w-[400px] shrink-0',
+                'w-full xl:w-[380px] shrink-0',
                 'rounded-xl p-5',
-                'bg-slate-900/50 backdrop-blur-xl border border-slate-800/50',
-                'overflow-y-auto max-h-[calc(100vh-12rem)]'
+                'bg-slate-900/60 backdrop-blur-xl border border-slate-800/80',
+                'overflow-y-auto max-h-[calc(100vh-14rem)] space-y-4'
               )}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-200">Document Details</h3>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Document Overview</h3>
                 <button
                   onClick={() => setSelectedDoc(null)}
-                  className="p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors"
+                  className="p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors cursor-pointer"
                   aria-label="Close preview"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* File info */}
-              <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-slate-800/30">
-                <FileIcon type={selectedDoc.type} size="lg" />
+              {/* File Info */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-800">
+                <FileIcon type={selectedDoc.type} size="md" />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-200 break-words">{selectedDoc.name}</p>
-                  <p className="text-xs text-slate-500">{formatFileSize(selectedDoc.size)} • v{selectedDoc.version}</p>
+                  <p className="text-xs font-semibold text-slate-200 break-words">{selectedDoc.name}</p>
+                  <p className="text-[10px] text-slate-400">{formatFileSize(selectedDoc.size)} • {selectedDoc.pageCount} pages</p>
                 </div>
               </div>
 
-              {/* Status & Risk */}
-              <div className="flex gap-2 mb-4">
+              {/* Status Badges */}
+              <div className="flex flex-wrap gap-2">
                 <Badge variant={statusConfig[selectedDoc.status]?.variant || 'default'} size="sm" dot>
                   {statusConfig[selectedDoc.status]?.label || selectedDoc.status}
                 </Badge>
+                {selectedDoc.isPrivileged && <Badge variant="danger" size="sm">Privileged</Badge>}
                 <Badge variant={selectedDoc.riskLevel === 'critical' ? 'danger' : selectedDoc.riskLevel === 'high' ? 'warning' : 'default'} size="sm">
-                  Risk: {selectedDoc.riskLevel}
+                  Risk: {selectedDoc.riskLevel.toUpperCase()}
                 </Badge>
-                {selectedDoc.isPrivileged && <Badge variant="purple" size="sm">Privileged</Badge>}
               </div>
 
-              {/* Quota Paused Notice & Fast Safe Resume */}
+              {/* Quota Paused Notice */}
               {selectedDoc.status === 'quota_paused' && (
-                <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200">
-                  <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-300 mb-1">
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-300">
                     <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
                     Pipeline Paused (Gemini LLM Quota)
                   </div>
-                  <p className="text-[11px] text-amber-300/80 leading-relaxed mb-2">
-                    Daily LLM quota reached. All upstream extracted text, OCR, and vector embeddings are safely preserved in database.
+                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                    Daily LLM quota reached. All upstream extracted text and OCR results are preserved.
                   </p>
                   <button
                     onClick={async () => {
@@ -685,117 +784,38 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
                       }
                     }}
                     disabled={isRetrying}
-                    className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow cursor-pointer"
+                    className="w-full py-1.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
-                    {isRetrying ? 'Resuming Pipeline...' : 'Resume Pipeline (Skip Completed Stages)'}
+                    {isRetrying ? 'Resuming Pipeline...' : 'Resume Pipeline'}
                   </button>
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="space-y-2 mb-4">
+              {/* Launch Review Action Button */}
+              <div className="pt-2">
                 <button
-                  onClick={() => {
-                    const targetCaseId = caseId || (selectedDoc.caseId !== 'case_unknown' ? selectedDoc.caseId : undefined);
-                    navigate(`/documents/${selectedDoc.id}`, {
-                      state: {
-                        caseId: targetCaseId,
-                        caseName: selectedDoc.caseName,
-                        returnTab: 'evidence',
-                      },
-                    });
-                  }}
+                  onClick={() => navigateToViewer(selectedDoc)}
                   id="launch-review-workspace-btn"
-                  className="w-full py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
                 >
-                  Launch Review Workspace
-                </button>
-                <button
-                  onClick={async () => {
-                    if (window.confirm(`Are you sure you want to delete "${selectedDoc.name}"?`)) {
-                      try {
-                        await api.delete(`/documents/${selectedDoc.id}`);
-                        setSelectedDoc(null);
-                        fetchDocuments();
-                      } catch (err) {
-                        console.error("Failed to delete document", err);
-                      }
-                    }
-                  }}
-                  className="w-full py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-red-500/20"
-                >
-                  Delete Document
+                  <Eye className="h-4 w-4" />
+                  Launch Document Intelligence
                 </button>
               </div>
 
-              {/* Metadata */}
-              <div className="space-y-3 mb-4">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Metadata</h4>
-                <MetadataRow label="Case" value={selectedDoc.caseName} />
-                <MetadataRow label="Type" value={selectedDoc.type.toUpperCase()} />
-                <MetadataRow label="Pages" value={String(selectedDoc.pageCount)} />
-                <MetadataRow label="Entities" value={String(selectedDoc.entityCount)} />
-                <MetadataRow label="Uploaded" value={formatDate(selectedDoc.uploadedAt)} />
-                {selectedDoc.processedAt && <MetadataRow label="Processed" value={formatDate(selectedDoc.processedAt)} />}
-              </div>
-
-              {/* OCR Results */}
-              {selectedDoc.ocrAccuracy > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">OCR Results</h4>
-                  <div className="p-3 rounded-lg bg-slate-800/30">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-slate-400">Accuracy</span>
-                      <span className="text-xs font-semibold text-slate-200">{selectedDoc.ocrAccuracy}%</span>
-                    </div>
-                    <ProgressBar value={selectedDoc.ocrAccuracy} variant={selectedDoc.ocrAccuracy > 95 ? 'success' : 'warning'} />
-                  </div>
+              {/* Metadata Details */}
+              <div className="space-y-2 pt-2 border-t border-slate-800 text-xs">
+                <div className="flex justify-between text-slate-400">
+                  <span>File Type:</span>
+                  <span className="font-mono text-slate-200 uppercase">{selectedDoc.type}</span>
                 </div>
-              )}
-
-              {/* Entity Highlights */}
-              <div className="mb-4">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Entities ({(selectedDoc as any).extractedEntities?.length || 0})
-                </h4>
-                <div className="space-y-1.5">
-                  {((selectedDoc as any).extractedEntities || []).slice(0, 6).map((entity: any) => (
-                    <div key={entity.id} className="flex items-center gap-2 p-2 rounded-lg bg-slate-800/20">
-                      <Badge variant={entity.type === 'PERSON' ? 'info' : entity.type === 'ORG' ? 'purple' : entity.type === 'MONEY' ? 'success' : 'default'} size="xs">
-                        {entity.type}
-                      </Badge>
-                      <span className="text-xs text-slate-300 truncate">{entity.text}</span>
-                      <span className="text-[10px] text-slate-600 ml-auto">{Math.round(entity.confidence * 100)}%</span>
-                    </div>
-                  ))}
-                  {!(selectedDoc as any).extractedEntities?.length && (
-                    <p className="text-xs text-slate-500 italic">No entities extracted yet.</p>
-                  )}
+                <div className="flex justify-between text-slate-400">
+                  <span>Page Count:</span>
+                  <span className="font-medium text-slate-200">{selectedDoc.pageCount}</span>
                 </div>
-              </div>
-
-              {/* Tags */}
-              <div className="mb-4">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Tags</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedDoc.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" size="xs">{tag}</Badge>
-                  ))}
-                  {selectedDoc.tags.length === 0 && <span className="text-xs text-slate-500 italic">No tags</span>}
-                </div>
-              </div>
-
-              {/* Version History */}
-              <div>
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Version History</h4>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-800/20">
-                    <Clock className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-slate-300">v{selectedDoc.version} — Initial Upload</p>
-                      <p className="text-[10px] text-slate-600">{selectedDoc.uploadedBy} • {formatDate(selectedDoc.uploadedAt)}</p>
-                    </div>
-                  </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Uploaded:</span>
+                  <span className="text-slate-200">{formatDate(selectedDoc.uploadedAt)}</span>
                 </div>
               </div>
             </motion.div>
@@ -803,14 +823,5 @@ export function DocumentsPage({ caseId, caseName }: DocumentsPageProps = {}) {
         </AnimatePresence>
       </div>
     </PageShell>
-  );
-}
-
-function MetadataRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-slate-500">{label}</span>
-      <span className="text-xs font-medium text-slate-300 text-right max-w-[200px] truncate">{value}</span>
-    </div>
   );
 }

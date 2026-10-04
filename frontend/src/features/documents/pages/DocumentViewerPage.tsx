@@ -3,7 +3,9 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { PageShell } from '@/components/templates/PageShell';
 import { DocumentToolbar } from '../components/DocumentToolbar';
 import { DocumentViewer } from '../components/DocumentViewer';
-import { ArrowLeft, Loader2, ChevronRight } from 'lucide-react';
+import { Badge } from '@/components/atoms/Badge';
+import { ArrowLeft, Loader2, ChevronRight, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { formatFileSize } from '@/lib/utils';
 import api from '@/lib/api';
 
 export function DocumentViewerPage() {
@@ -40,10 +42,10 @@ export function DocumentViewerPage() {
 
   if (isLoading) {
     return (
-      <PageShell title="Document Viewer" description="Loading document workspace...">
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+      <PageShell title="Document Intelligence" description="Loading document workspace...">
+        <div className="flex flex-col items-center justify-center py-24 text-slate-400">
           <Loader2 className="h-8 w-8 animate-spin mb-3 text-indigo-500" />
-          <p className="text-sm">Loading document content and AI annotations...</p>
+          <p className="text-sm">Loading document content and intelligence...</p>
         </div>
       </PageShell>
     );
@@ -51,14 +53,14 @@ export function DocumentViewerPage() {
 
   if (!doc) {
     return (
-      <PageShell title="Document Viewer" description="Document not found.">
+      <PageShell title="Document Intelligence" description="Document not found.">
         <div className="p-4 rounded-lg bg-red-950/20 text-red-400 border border-red-500/20 mb-4">
           Document with reference ID could not be loaded. Please return to the document library.
         </div>
         <button
           onClick={handleBack}
           id="doc-viewer-error-back-button"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" /> {returnLabel}
         </button>
@@ -66,10 +68,15 @@ export function DocumentViewerPage() {
     );
   }
 
+  const docName = doc.original_filename || doc.filename || 'Document';
+  const isHumanVerified = doc.doc_metadata?.review_status === 'reviewed_by_human';
+  const isFlagged = doc.status === 'flagged';
+  const fileExtension = docName.includes('.') ? docName.split('.').pop()?.toUpperCase() : (doc.content_type?.split('/')?.pop()?.toUpperCase() || 'FILE');
+
   return (
     <PageShell
-      title="Enterprise Document Review & Analysis Workspace"
-      description="Side-by-side workspace with inline legal reasoning, entity classification, and version comparison."
+      title={docName}
+      description="Document intelligence workspace with extracted text, privilege screening, multi-type summaries, and attorney review."
       fullWidth
       actions={
         <button
@@ -81,8 +88,9 @@ export function DocumentViewerPage() {
         </button>
       }
     >
+      {/* Authoritative Breadcrumb Navigation */}
       {activeCaseId && (
-        <nav aria-label="Document Breadcrumbs" className="flex items-center gap-1.5 text-xs text-slate-400 -mt-2 mb-3">
+        <nav aria-label="Document Breadcrumbs" className="flex items-center gap-1.5 text-xs text-slate-400 -mt-2 mb-2">
           <Link to="/cases" className="hover:text-indigo-400 font-medium transition-colors">Cases</Link>
           <ChevronRight className="h-3 w-3 text-slate-600" />
           <Link to={`/cases/${activeCaseId}/overview`} className="hover:text-indigo-400 font-medium transition-colors max-w-[240px] truncate">
@@ -93,16 +101,61 @@ export function DocumentViewerPage() {
             {returnTab}
           </Link>
           <ChevronRight className="h-3 w-3 text-slate-600" />
-          <span className="text-slate-200 font-semibold truncate max-w-[240px]" aria-current="page">
-            {doc.original_filename || doc.filename || 'Document'}
+          <span className="text-slate-200 font-semibold truncate max-w-[280px]" aria-current="page">
+            {docName}
           </span>
         </nav>
       )}
-      <div className="flex flex-col gap-4 h-[calc(100vh-12rem)]">
+
+      {/* Document Metadata Badges Strip */}
+      <div className="flex flex-wrap items-center gap-2 -mt-1 mb-2">
+        {navState.caseName && (
+          <span className="text-xs text-indigo-300 font-medium">
+            Matter: {navState.caseName}
+          </span>
+        )}
+        <span className="text-slate-600">•</span>
+        <Badge
+          variant={
+            doc.status === 'reviewed'
+              ? 'purple'
+              : doc.status === 'flagged'
+              ? 'danger'
+              : doc.status === 'quota_paused'
+              ? 'warning'
+              : 'default'
+          }
+          size="xs"
+          className="uppercase font-mono"
+        >
+          {doc.status}
+        </Badge>
+        <Badge variant="outline" size="xs">
+          {fileExtension}
+        </Badge>
+        <span className="text-xs text-slate-400">
+          {formatFileSize(doc.file_size)}
+        </span>
+        <span className="text-slate-600">•</span>
+        <span className="text-xs text-slate-400">
+          {doc.page_count || 1} {doc.page_count === 1 ? 'page' : 'pages'}
+        </span>
+        {isHumanVerified ? (
+          <Badge variant="success" size="xs" className="flex items-center gap-1">
+            <CheckCircle2 className="h-2.5 w-2.5" /> Human Verified
+          </Badge>
+        ) : isFlagged ? (
+          <Badge variant="danger" size="xs" className="flex items-center gap-1">
+            <ShieldAlert className="h-2.5 w-2.5" /> Flagged for Review
+          </Badge>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-4 h-[calc(100vh-14rem)]">
         {/* Document Action Toolbar */}
         <DocumentToolbar
-          fileName={doc.original_filename || doc.filename || doc.name || 'Document'}
-          pageCount={doc.page_count || doc.pageCount || 1}
+          fileName={docName}
+          pageCount={doc.page_count || 1}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
           documentId={doc.id}
@@ -113,6 +166,7 @@ export function DocumentViewerPage() {
           currentPage={currentPage}
           onPageChange={setCurrentPage}
           doc={doc}
+          onDocUpdate={(updatedDoc) => setDoc(updatedDoc)}
         />
       </div>
     </PageShell>

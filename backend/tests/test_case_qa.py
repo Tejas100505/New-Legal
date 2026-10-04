@@ -246,6 +246,7 @@ async def create_fixture_doc_and_chunk(
         chunk_id=str(chunk_uuid),
         text=chunk_text,
         embedding=[0.01] * 1024,
+        metadata_={"filename": doc.filename},
     )
     session.add(chunk)
     await session.commit()
@@ -347,6 +348,9 @@ async def test_qa_owner_success_200():
         assert data["status"] == "grounded"
         assert len(data["citations"]) == 1
         assert data["citations"][0]["chunk_id"] == str(chunk.id)
+        assert data["citations"][0]["document_id"] == str(chunk.document_id)
+        assert data["citations"][0]["filename"] == "test_doc.txt"
+        assert data["citations"][0]["filename"] != "unavailable"
         assert data["grounding_diagnostics"]["gate_a_passed"] is True
         assert data["grounding_diagnostics"]["gate_b_passed"] is True
         assert data["llm_calls"] == 1
@@ -790,3 +794,41 @@ async def test_qa_oversized_question_422():
         json={"question": oversized_q},
     )
     assert resp.status_code == 422
+
+
+# ===========================================================================
+# 10. Provenance Metadata Regression Test (Phase 6B)
+# ===========================================================================
+
+@pytest.mark.asyncio
+async def test_qa_citation_provenance_metadata_forwarded():
+    """Verify that document_id and filename are properly forwarded to citations and not 'unavailable'."""
+    async with TestSession() as session:
+        owner_sub = str(uuid.uuid4())
+        case = await create_fixture_case(session, owner_sub, "Provenance Test Case")
+        chunk = await create_fixture_doc_and_chunk(
+            session,
+            case.id,
+            "The environmental monitoring log recorded 12 compliance checks during the quarter.",
+        )
+
+    token_owner = create_access_token(user_id=owner_sub, email="owner@law.com", role=UserRole.LAWYER)
+
+    with patch("app.services.case_qa_service.LLMClient.generate_text", new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = "The log recorded 12 compliance checks [C1]."
+
+        resp = client.post(
+            f"/api/v1/cases/{case.id}/ask",
+            headers={"Authorization": f"Bearer {token_owner}"},
+            json={"question": "How many compliance checks were recorded?"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "grounded"
+        assert len(data["citations"]) == 1
+        citation = data["citations"][0]
+        assert citation["chunk_id"] == str(chunk.id)
+        assert citation["document_id"] == str(chunk.document_id)
+        assert citation["document_id"] != ""
+        assert citation["filename"] == "test_doc.txt"
+        assert citation["filename"] != "unavailable"

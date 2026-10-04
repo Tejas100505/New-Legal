@@ -37,6 +37,8 @@ class RetrievalInput(BaseModel):
 
 class RetrievalResult(BaseModel):
     chunk_id: str
+    document_id: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
     page: Optional[int]
     citation: str
     score: float
@@ -151,6 +153,8 @@ class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
             
             results.append(RetrievalResult(
                 chunk_id=chunk.chunk_id,
+                document_id=chunk.document_id,
+                metadata=chunk.metadata,
                 page=chunk.page,
                 citation=citation,
                 score=round(final_score, 4),

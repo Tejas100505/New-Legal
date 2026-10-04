@@ -113,8 +113,18 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
       return matchedIds.has(n.id);
     });
 
-    // 4. Sort nodes by connectivity degree so the most central, critical entities appear first
-    filteredNodes.sort((a, b) => (nodeDegree[b.id] || 0) - (nodeDegree[a.id] || 0));
+    // 4. Sort nodes: when searching, sort matching labels first; then sort by connectivity degree
+    filteredNodes.sort((a, b) => {
+      if (filters.searchQuery) {
+        const q = filters.searchQuery.toLowerCase().trim();
+        const aLabel = (a.label || a.name || '').toLowerCase();
+        const bLabel = (b.label || b.name || '').toLowerCase();
+        const aScore = aLabel === q ? 3 : aLabel.startsWith(q) ? 2 : aLabel.includes(q) ? 1 : 0;
+        const bScore = bLabel === q ? 3 : bLabel.startsWith(q) ? 2 : bLabel.includes(q) ? 1 : 0;
+        if (aScore !== bScore) return bScore - aScore;
+      }
+      return (nodeDegree[b.id] || 0) - (nodeDegree[a.id] || 0);
+    });
 
     // 5. Cap active viewport nodes to ensure fast 60fps rendering without choking SVG DOM
     const MAX_ACTIVE_NODES = filters.searchQuery ? 80 : 60;
@@ -298,18 +308,33 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
 
   return (
     <div className="w-full h-full relative" style={{ minHeight: '500px' }}>
-      {/* Status Badges */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        {rawNodes.length > 0 && (
-          <div className="px-2.5 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md border bg-slate-900/80 border-slate-750/50 text-slate-300">
-            Showing <strong className="text-indigo-400">{nodes.length}</strong> active nodes (<strong className="text-slate-200">{entityCount}</strong> entities, <strong className="text-slate-200">{docCount}</strong> docs)
+      {/* Complete Case Graph Information Banner */}
+      <div className="absolute top-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+        <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
+          {rawNodes.length > 0 && (
+            <div className="px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md border bg-slate-900/90 border-slate-750/70 text-slate-300 shadow-lg flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-slate-200">
+                Complete case graph: <strong className="text-indigo-400 font-mono">{rawNodes.length.toLocaleString()}</strong> nodes / <strong className="text-indigo-400 font-mono">{rawEdges.length.toLocaleString()}</strong> relationships (<strong className="text-slate-300 font-mono">{entityCount.toLocaleString()}</strong> entities, <strong className="text-slate-300 font-mono">{docCount.toLocaleString()}</strong> docs)
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-300">
+                Showing <strong className="text-emerald-400 font-mono">{nodes.length}</strong> high-centrality nodes & <strong className="text-emerald-400 font-mono">{edges.length}</strong> visible relationships
+              </span>
+              <span className="text-slate-600 hidden xl:inline">|</span>
+              <span className="text-slate-400 text-[11px] hidden xl:inline">
+                Explore full graph using search, filters, and expansion
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 pointer-events-auto ml-auto">
+          <div className="px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md border shadow-lg flex items-center gap-1.5 cursor-default select-none transition-all duration-300 bg-slate-900/90 border-slate-750/70">
+            <span className={`h-2 w-2 rounded-full ${source === 'live' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'}`} />
+            <span className={source === 'live' ? 'text-emerald-400' : 'text-amber-400'}>
+              {source === 'live' ? '● Live DB Data' : '▲ Demo Fallback'}
+            </span>
           </div>
-        )}
-        <div className="px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md border shadow-lg flex items-center gap-1.5 cursor-default select-none transition-all duration-300 bg-slate-900/80 border-slate-750/50">
-          <span className={`h-2 w-2 rounded-full ${source === 'live' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'}`} />
-          <span className={source === 'live' ? 'text-emerald-400' : 'text-amber-400'}>
-            {source === 'live' ? 'Live DB Data' : 'Demo Fallback'}
-          </span>
         </div>
       </div>
 

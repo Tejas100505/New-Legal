@@ -29,6 +29,7 @@ interface GraphState {
   highlightNeighbors: (nodeId: string) => void;
   clearHighlights: () => void;
   expandNode: (nodeId: string) => void;
+  resetFilters: () => void;
 }
 
 function normalizeNodeType(rawType: any): string {
@@ -139,6 +140,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   setFilters: (newFilters) => set((state) => ({ filters: { ...state.filters, ...newFilters } })),
+  resetFilters: () => set({
+    filters: {
+      nodeTypes: ['document', 'person', 'organization', 'evidence', 'email', 'contract', 'legal_issue', 'event', 'location', 'case'],
+      edgeTypes: ['mentions', 'ownership', 'similarity', 'communication', 'citation', 'references', 'evidence_link', 'relationship'],
+      minWeight: 0.1,
+      caseId: null,
+      searchQuery: '',
+      dateRange: null,
+    },
+    selectedNodeId: null,
+    shortestPath: null,
+    highlightedNeighbors: [],
+  }),
   setLayoutMode: (layoutMode) => set({ layoutMode }),
   toggleClustering: () => set((state) => ({ isClustered: !state.isClustered })),
   

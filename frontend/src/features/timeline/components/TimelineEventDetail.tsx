@@ -1,9 +1,11 @@
+import { useNavigate } from 'react-router-dom';
 import { useTimelineStore } from '../store/timelineStore';
 import { Badge } from '@/components/atoms/Badge';
-import { Info, HelpCircle, FileText, Link2, User, UserCheck } from 'lucide-react';
+import { Info, HelpCircle, FileText, Link2, User, UserCheck, ExternalLink } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export function TimelineEventDetail() {
+  const navigate = useNavigate();
   const selectedEventId = useTimelineStore((s) => s.selectedEventId);
   const selectEvent = useTimelineStore((s) => s.selectEvent);
   const events = useTimelineStore((s) => s.events) as any[];
@@ -88,13 +90,31 @@ export function TimelineEventDetail() {
           <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Linked Exhibits & Files</span>
           <div className="flex flex-col gap-1.5">
             {event.documentId && (
-              <div className="flex items-center gap-2 p-2 rounded bg-slate-950/30 border border-slate-850 hover:border-slate-700 transition-colors">
-                <FileText className="h-4 w-4 text-cyan-400" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-slate-300 font-semibold truncate">{event.documentName}</p>
-                  <p className="text-[9px] text-slate-500">File ID: {event.documentId}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(`/documents/${event.documentId}`, {
+                    state: {
+                      caseId: event.caseId,
+                      caseName: event.caseName,
+                      returnTab: 'timeline',
+                    },
+                  });
+                }}
+                className="w-full text-left flex items-center justify-between gap-2 p-2.5 rounded-lg bg-cyan-950/20 border border-cyan-800/40 hover:border-cyan-500/60 hover:bg-cyan-950/40 transition-all group cursor-pointer"
+                title="Open source document in Document Intelligence"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-4 w-4 text-cyan-400 shrink-0 group-hover:scale-105 transition-transform" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-cyan-200 font-medium truncate group-hover:text-cyan-100">
+                      {event.documentName || 'Source Document'}
+                    </p>
+                    <p className="text-[9px] text-slate-500">File ID: {event.documentId}</p>
+                  </div>
                 </div>
-              </div>
+                <ExternalLink className="h-3.5 w-3.5 text-cyan-400 opacity-60 group-hover:opacity-100 shrink-0" />
+              </button>
             )}
             {event.evidenceId && (
               <div className="flex items-center gap-2 p-2 rounded bg-slate-950/30 border border-slate-850 hover:border-slate-700 transition-colors">

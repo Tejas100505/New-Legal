@@ -145,7 +145,7 @@ async def _build_knowledge_graph(
                 "id": doc_node_id,
                 "label": doc.original_filename,
                 "type": "document",
-                "metadata": {"file_size": str(doc.file_size or 0)},
+                "metadata": {"file_size": str(doc.file_size or 0), "document_id": doc_id_str},
                 "importance": 0.9,
                 "description": f"Document: {doc.original_filename}"
             })

@@ -121,6 +121,13 @@ export function TimelineEventCard({ event, isSelected, onSelect, index }: Timeli
             {event.type.replace('_', ' ')}
           </Badge>
 
+          {event.documentName && (
+            <span className="flex items-center gap-1 text-slate-400 max-w-[200px] truncate" title={event.documentName}>
+              <FileText className="h-3 w-3 text-cyan-400 shrink-0" />
+              <span className="truncate">{event.documentName}</span>
+            </span>
+          )}
+
           {event.lawyerName && (
             <span className="text-slate-500">
               Counsel: <strong className="text-slate-400">{event.lawyerName}</strong>

@@ -53,13 +53,15 @@ export const useTimelineStore = create<TimelineState>((set) => ({
         .map((e: any) => ({
           ...e,
           id: String(e.id),
+          caseId: e.caseId || e.case_id || caseId || '',
+          caseName: e.caseName || e.case_name || '',
           title: e.title || 'Investigation Event',
           timestamp: e.timestamp || e.date || new Date().toISOString(),
           type: e.type || (e.filename?.includes('email') || e.filename?.endsWith('.txt') ? 'email' : 'document'),
           priority: e.priority || e.importance || 'high',
           description: e.description || e.filename || '',
-          documentId: e.document_id || e.documentId,
-          documentName: e.filename || e.documentName || undefined,
+          documentId: e.documentId || e.document_id,
+          documentName: e.documentName || e.filename || undefined,
           source: 'live' as const,
         }));
       set({

@@ -114,10 +114,18 @@ export function NodeDetailPanel() {
         <div className="flex flex-col gap-2 border-t border-slate-800 pt-3">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Actions</span>
           <button
-            onClick={() => navigate(`/documents`)}
-            className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-all"
+            onClick={() => {
+              const docId = node.metadata?.document_id || node.id.replace('doc_', '');
+              navigate(`/documents/${docId}`, {
+                state: {
+                  caseId: node.caseId || node.metadata?.case_id,
+                  returnTab: 'relationships',
+                },
+              });
+            }}
+            className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-medium transition-all cursor-pointer"
           >
-            <FileText className="h-3.5 w-3.5" /> View Document Library
+            <FileText className="h-3.5 w-3.5" /> Open in Document Intelligence
           </button>
         </div>
       )}

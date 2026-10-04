@@ -41,7 +41,7 @@ export function TimelinePage({ caseId }: TimelinePageProps = {}) {
 
     // 2. Case filter
     const activeCaseId = caseId || filters.caseId;
-    if (activeCaseId && e.caseId !== activeCaseId) return false;
+    if (activeCaseId && e.caseId && e.caseId !== activeCaseId) return false;
 
     // 3. Priority filter
     if (filters.priority && e.priority !== filters.priority) return false;

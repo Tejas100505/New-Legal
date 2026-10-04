@@ -17,6 +17,7 @@ const EDGE_TYPES: GraphEdgeType[] = [
 export function GraphFilterPanel() {
   const filters = useGraphStore((s) => s.filters);
   const setFilters = useGraphStore((s) => s.setFilters);
+  const resetFilters = useGraphStore((s) => s.resetFilters);
   const rawNodes = useGraphStore((s) => s.rawNodes);
   const rawEdges = useGraphStore((s) => s.rawEdges);
 
@@ -175,6 +176,15 @@ export function GraphFilterPanel() {
           className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
         />
       </div>
+
+      {/* Reset Button */}
+      <button
+        type="button"
+        onClick={() => resetFilters()}
+        className="w-full py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-750 text-slate-300 text-xs font-semibold border border-slate-700/60 transition-all hover:text-slate-100"
+      >
+        Reset All Filters
+      </button>
     </div>
   );
 }

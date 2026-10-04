@@ -43,10 +43,12 @@ async def main():
     )
     headers = {"Authorization": f"Bearer {token}"}
 
-    print("[Baseline Capture] Calling GET /api/v1/graph...")
+    PRIMARY_CASE_ID = "8d8389d4-2534-452d-85b4-65efe5b8e1c3"
+    params = {"caseId": PRIMARY_CASE_ID}
+    print(f"[Baseline Capture] Calling GET /api/v1/graph with caseId={PRIMARY_CASE_ID}...")
     t0 = time.perf_counter()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", timeout=60.0) as client:
-        res = await client.get("/api/v1/graph", headers=headers)
+        res = await client.get("/api/v1/graph", headers=headers, params=params)
     t_end = time.perf_counter()
     latency = t_end - t0
 

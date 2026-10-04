@@ -192,7 +192,7 @@ async def run_review(
         doc_res_data = {
             "document_id": doc_id_str,
             "summaries": [s.model_dump() for s in sum_result.summaries],
-            "classification": "Contracts",  # Mocked / would come from Classification
+            "classification": meta.get("classification", "Unclassified"),  # Real classification from pipeline or doc_metadata
             "privilege": priv_result.model_dump(),
             "pii_redacted": len(pii_result.entities_found) > 0,
             "risk": risk_result.overall_risk,

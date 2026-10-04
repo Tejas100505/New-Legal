@@ -37,7 +37,7 @@ export interface AuthResponse {
 
 // ── Cases ────────────────────────────────────────────────────────────────────
 
-export type CaseStatus = 'active' | 'pending' | 'review' | 'closed' | 'archived';
+export type CaseStatus = 'created' | 'in_progress' | 'under_review' | 'completed' | 'archived';
 export type CasePriority = 'critical' | 'high' | 'medium' | 'low';
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low' | 'none';
 

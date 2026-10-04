@@ -191,7 +191,7 @@ async def get_analytics(
         "metrics": enriched_metrics,
         "explanation": {
             "ocr_accuracy": "Evaluated relative to digital text character overlap extraction.",
-            "retrieval_precision_recall": "Currently calculated on mock search queries or simulated ground truth.",
+            "retrieval_precision_recall": "Not available — requires a human-annotated ground-truth dataset for evaluation.",
             "hallucination_rate": "Computed via N-gram term verification against the source document (excluding stopwords)."
         }
     }

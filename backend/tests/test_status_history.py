@@ -34,8 +34,11 @@ _orig_session_local = db_session_module.AsyncSessionLocal
 @pytest.fixture(scope="module", autouse=True)
 def manage_session_local():
     db_session_module.AsyncSessionLocal = StatusSessionLocal
-    yield
-    db_session_module.AsyncSessionLocal = _orig_session_local
+    try:
+        yield
+    finally:
+        db_session_module.AsyncSessionLocal = _orig_session_local
+
 
 from app.main import app
 from app.db.base import Base

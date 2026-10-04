@@ -21,7 +21,15 @@ logout_engine = create_async_engine(TEST_DB_URL, echo=False)
 LogoutSessionLocal = async_sessionmaker(bind=logout_engine, class_=AsyncSession, expire_on_commit=False)
 
 import app.db.session as db_session_module
-db_session_module.AsyncSessionLocal = LogoutSessionLocal
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    orig_session_local = db_session_module.AsyncSessionLocal
+    db_session_module.AsyncSessionLocal = LogoutSessionLocal
+    try:
+        yield
+    finally:
+        db_session_module.AsyncSessionLocal = orig_session_local
 
 from app.main import app
 from app.db.base import Base
@@ -33,7 +41,6 @@ from app.core.rate_limit import limiter
 
 async def init_logout_db():
     limiter.reset()
-    db_session_module.AsyncSessionLocal = LogoutSessionLocal
     async with logout_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

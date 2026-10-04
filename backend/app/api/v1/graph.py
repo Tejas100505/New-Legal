@@ -30,109 +30,14 @@ class EdgeResponse(BaseModel):
 class GraphResponse(BaseModel):
     nodes: List[NodeResponse]
     edges: List[EdgeResponse]
-    source: str = "live" # "live" | "mock_fallback"
+    source: str = "live"  # data provenance: "live" = from pipeline extraction
 
 class ShortestPathResponse(BaseModel):
     path: List[str]
     edges: List[str]
     totalWeight: float
 
-MOCK_NODES = [
-  {"id": "gn_001", "label": "Meridian Corp.", "type": "organization", "metadata": {"role": "plaintiff", "headquarters": "San Jose, CA"}, "importance": 0.95, "description": "Plaintiff corporation claiming patent infringement."},
-  {"id": "gn_002", "label": "Atlas Industries", "type": "organization", "metadata": {"role": "defendant", "headquarters": "Austin, TX"}, "importance": 0.92, "description": "Defendant corporation accused of trade secret theft."},
-  {"id": "gn_003", "label": "Dr. James Whitfield", "type": "person", "metadata": {"role": "Lead Scientist", "employer": "Meridian Corp."}, "importance": 0.88, "description": "Co-inventor of the contested semiconductor process."},
-  {"id": "gn_004", "label": "Patent US-2024-0089123", "type": "document", "metadata": {"type": "patent", "date": "2024-03-12"}, "importance": 0.90, "description": "Contested patent on semiconductor manufacturing."},
-  {"id": "gn_005", "label": "San Jose, CA", "type": "location", "metadata": {"state": "California"}, "importance": 0.5},
-  {"id": "gn_006", "label": "Greenfield Partners", "type": "organization", "metadata": {"role": "investor"}, "importance": 0.7},
-  {"id": "gn_007", "label": "SEC", "type": "organization", "metadata": {"role": "regulatory_body"}, "importance": 0.8},
-  {"id": "gn_008", "label": "Board Meeting Q1", "type": "event", "metadata": {"date": "2026-03-15"}, "importance": 0.65},
-  {"id": "gn_009", "label": "Thornton Family", "type": "person", "metadata": {"role": "beneficiary"}, "importance": 0.75},
-  {"id": "gn_010", "label": "Will Amendment", "type": "document", "metadata": {"year": "2019"}, "importance": 0.85},
-  {"id": "gn_011", "label": "Dr. Linda Vance", "type": "person", "metadata": {"role": "Expert Witness", "field": "Semiconductors"}, "importance": 0.8},
-  {"id": "gn_012", "label": "Source Code Repository", "type": "evidence", "metadata": {"type": "git_repo", "hash": "sha256:8f9a2b"}, "importance": 0.85},
-  {"id": "gn_013", "label": "NDA Agreement", "type": "contract", "metadata": {"signed": "2023-05-14"}, "importance": 0.78},
-  {"id": "gn_014", "label": "John Miller", "type": "person", "metadata": {"role": "Former Employee", "target": "Atlas Industries"}, "importance": 0.82},
-  {"id": "gn_015", "label": "Email Thread #41", "type": "email", "metadata": {"subject": "Project Phoenix Specs"}, "importance": 0.75},
-  {"id": "gn_016", "label": "Austin, TX", "type": "location", "metadata": {"state": "Texas"}, "importance": 0.4},
-  {"id": "gn_017", "label": "IP Theft Allegation", "type": "legal_issue", "metadata": {"status": "contested"}, "importance": 0.9},
-  {"id": "gn_018", "label": "Damages Estimation", "type": "legal_issue", "metadata": {"value": "$45M"}, "importance": 0.82},
-  {"id": "gn_019", "label": "Deposition of Whitfield", "type": "event", "metadata": {"date": "2026-06-12"}, "importance": 0.72},
-  {"id": "gn_020", "label": "Deposition of Miller", "type": "event", "metadata": {"date": "2026-06-18"}, "importance": 0.74},
-  {"id": "gn_021", "label": "Meridian Lab Report", "type": "document", "metadata": {"type": "R&D"}, "importance": 0.65},
-  {"id": "gn_022", "label": "Atlas Technical Spec", "type": "document", "metadata": {"type": "Blueprint"}, "importance": 0.78},
-  {"id": "gn_023", "label": "David Ross", "type": "person", "metadata": {"role": "Attorney", "firm": "Westlake"}, "importance": 0.6},
-  {"id": "gn_024", "label": "Patent Office", "type": "organization", "metadata": {"country": "US"}, "importance": 0.72},
-  {"id": "gn_025", "label": "Court Hearing Q2", "type": "event", "metadata": {"date": "2026-05-20"}, "importance": 0.8},
-  {"id": "gn_026", "label": "Bank Wire Transfer", "type": "evidence", "metadata": {"amount": "$1.2M"}, "importance": 0.79},
-  {"id": "gn_027", "label": "Swiss Bank Account", "type": "location", "metadata": {"country": "Switzerland"}, "importance": 0.65},
-  {"id": "gn_028", "label": "Consulting Contract", "type": "contract", "metadata": {"status": "terminated"}, "importance": 0.7},
-  {"id": "gn_029", "label": "Robert Chen", "type": "person", "metadata": {"role": "CEO", "company": "Atlas Industries"}, "importance": 0.86},
-  {"id": "gn_030", "label": "Alice Thompson", "type": "person", "metadata": {"role": "VP Engineering", "company": "Meridian"}, "importance": 0.81},
-  {"id": "gn_031", "label": "Subpoena Document", "type": "document", "metadata": {"date": "2026-04-10"}, "importance": 0.75},
-  {"id": "gn_032", "label": "Meeting Audio Recording", "type": "evidence", "metadata": {"type": "audio"}, "importance": 0.68},
-  {"id": "gn_033", "label": "Chat Log Export", "type": "evidence", "metadata": {"platform": "Slack"}, "importance": 0.73},
-  {"id": "gn_034", "label": "Vance Expert Report", "type": "document", "metadata": {"date": "2026-07-02"}, "importance": 0.84},
-  {"id": "gn_035", "label": "Prior Art Search", "type": "document", "metadata": {"scope": "global"}, "importance": 0.62},
-  {"id": "gn_036", "label": "Development Server Log", "type": "evidence", "metadata": {"type": "network_log"}, "importance": 0.77},
-  {"id": "gn_037", "label": "System Access Log", "type": "evidence", "metadata": {"type": "security_log"}, "importance": 0.8},
-  {"id": "gn_038", "label": "Joint Defense Agreement", "type": "contract", "metadata": {"type": "legal"}, "importance": 0.72},
-  {"id": "gn_039", "label": "London, UK", "type": "location", "metadata": {"region": "Europe"}, "importance": 0.3},
-  {"id": "gn_040", "label": "IPO Filing Draft", "type": "document", "metadata": {"status": "draft"}, "importance": 0.67},
-  {"id": "gn_041", "label": "Forensic Copy Disk", "type": "evidence", "metadata": {"status": "verified"}, "importance": 0.85},
-]
 
-MOCK_EDGES = [
-  {"id": "ge_001", "source": "gn_001", "target": "gn_002", "label": "filed against", "type": "relationship", "weight": 0.95},
-  {"id": "ge_002", "source": "gn_003", "target": "gn_004", "label": "inventor of", "type": "relationship", "weight": 0.98},
-  {"id": "ge_003", "source": "gn_001", "target": "gn_004", "label": "owns", "type": "ownership", "weight": 0.9},
-  {"id": "ge_004", "source": "gn_003", "target": "gn_005", "label": "based in", "type": "relationship", "weight": 0.6},
-  {"id": "ge_005", "source": "gn_006", "target": "gn_007", "label": "investigated by", "type": "relationship", "weight": 0.85},
-  {"id": "ge_006", "source": "gn_006", "target": "gn_008", "label": "held", "type": "relationship", "weight": 0.7},
-  {"id": "ge_007", "source": "gn_009", "target": "gn_010", "label": "contested", "type": "relationship", "weight": 0.88},
-  {"id": "ge_008", "source": "gn_002", "target": "gn_004", "label": "allegedly infringes", "type": "citation", "weight": 0.84},
-  {"id": "ge_009", "source": "gn_011", "target": "gn_001", "label": "retained by", "type": "relationship", "weight": 0.8},
-  {"id": "ge_010", "source": "gn_012", "target": "gn_002", "label": "found on", "type": "evidence_link", "weight": 0.92},
-  {"id": "ge_011", "source": "gn_014", "target": "gn_013", "label": "bound by", "type": "ownership", "weight": 0.85},
-  {"id": "ge_012", "source": "gn_014", "target": "gn_001", "label": "formerly employed by", "type": "relationship", "weight": 0.75},
-  {"id": "ge_013", "source": "gn_014", "target": "gn_002", "label": "hired by", "type": "relationship", "weight": 0.88},
-  {"id": "ge_014", "source": "gn_015", "target": "gn_014", "label": "sent by", "type": "communication", "weight": 0.9},
-  {"id": "ge_015", "source": "gn_015", "target": "gn_029", "label": "received by", "type": "communication", "weight": 0.9},
-  {"id": "ge_016", "source": "gn_002", "target": "gn_016", "label": "headquartered in", "type": "relationship", "weight": 0.7},
-  {"id": "ge_017", "source": "gn_017", "target": "gn_001", "label": "raised by", "type": "relationship", "weight": 0.95},
-  {"id": "ge_018", "source": "gn_017", "target": "gn_002", "label": "concerns", "type": "relationship", "weight": 0.9},
-  {"id": "ge_019", "source": "gn_018", "target": "gn_017", "label": "stems from", "type": "relationship", "weight": 0.8},
-  {"id": "ge_020", "source": "gn_019", "target": "gn_003", "label": "questioned", "type": "relationship", "weight": 0.75},
-  {"id": "ge_021", "source": "gn_020", "target": "gn_014", "label": "questioned", "type": "relationship", "weight": 0.78},
-  {"id": "ge_022", "source": "gn_021", "target": "gn_003", "label": "authored by", "type": "relationship", "weight": 0.85},
-  {"id": "ge_023", "source": "gn_022", "target": "gn_029", "label": "authorized by", "type": "relationship", "weight": 0.8},
-  {"id": "ge_024", "source": "gn_021", "target": "gn_022", "label": "highly similar to", "type": "similarity", "weight": 0.89},
-  {"id": "ge_025", "source": "gn_023", "target": "gn_001", "label": "represents", "type": "relationship", "weight": 0.9},
-  {"id": "ge_026", "source": "gn_004", "target": "gn_024", "label": "registered with", "type": "relationship", "weight": 0.95},
-  {"id": "ge_027", "source": "gn_025", "target": "gn_023", "label": "attended by", "type": "relationship", "weight": 0.75},
-  {"id": "ge_028", "source": "gn_026", "target": "gn_027", "label": "routed to", "type": "evidence_link", "weight": 0.82},
-  {"id": "ge_029", "source": "gn_026", "target": "gn_002", "label": "funded by", "type": "evidence_link", "weight": 0.88},
-  {"id": "ge_030", "source": "gn_014", "target": "gn_026", "label": "beneficial owner", "type": "ownership", "weight": 0.93},
-  {"id": "ge_031", "source": "gn_028", "target": "gn_014", "label": "executed with", "type": "ownership", "weight": 0.75},
-  {"id": "ge_032", "source": "gn_030", "target": "gn_001", "label": "manages", "type": "relationship", "weight": 0.85},
-  {"id": "ge_033", "source": "gn_030", "target": "gn_015", "label": "mentioned in", "type": "mentions", "weight": 0.7},
-  {"id": "ge_034", "source": "gn_031", "target": "gn_002", "label": "served to", "type": "relationship", "weight": 0.85},
-  {"id": "ge_035", "source": "gn_032", "target": "gn_014", "label": "records voice of", "type": "evidence_link", "weight": 0.82},
-  {"id": "ge_036", "source": "gn_032", "target": "gn_029", "label": "records voice of", "type": "evidence_link", "weight": 0.84},
-  {"id": "ge_037", "source": "gn_033", "target": "gn_014", "label": "involves chat of", "type": "evidence_link", "weight": 0.75},
-  {"id": "ge_038", "source": "gn_034", "target": "gn_011", "label": "written by", "type": "relationship", "weight": 0.98},
-  {"id": "ge_039", "source": "gn_034", "target": "gn_021", "label": "cites", "type": "citation", "weight": 0.9},
-  {"id": "ge_040", "source": "gn_034", "target": "gn_022", "label": "cites", "type": "citation", "weight": 0.92},
-  {"id": "ge_041", "source": "gn_035", "target": "gn_004", "label": "references", "type": "references", "weight": 0.85},
-  {"id": "ge_042", "source": "gn_036", "target": "gn_012", "label": "logs access to", "type": "evidence_link", "weight": 0.87},
-  {"id": "ge_043", "source": "gn_037", "target": "gn_014", "label": "records session of", "type": "evidence_link", "weight": 0.91},
-  {"id": "ge_044", "source": "gn_038", "target": "gn_002", "label": "protects", "type": "relationship", "weight": 0.8},
-  {"id": "ge_045", "source": "gn_014", "target": "gn_039", "label": "traveled to", "type": "relationship", "weight": 0.65},
-  {"id": "ge_046", "source": "gn_040", "target": "gn_001", "label": "planned by", "type": "relationship", "weight": 0.78},
-  {"id": "ge_047", "source": "gn_041", "target": "gn_014", "label": "cloned laptop of", "type": "evidence_link", "weight": 0.95},
-  {"id": "ge_048", "source": "gn_029", "target": "gn_002", "label": "directs", "type": "relationship", "weight": 0.9},
-  {"id": "ge_049", "source": "gn_028", "target": "gn_002", "label": "drafted by", "type": "references", "weight": 0.6},
-  {"id": "ge_050", "source": "gn_013", "target": "gn_001", "label": "entered with", "type": "references", "weight": 0.8},
-]
 
 import json
 from collections import Counter, defaultdict
@@ -382,14 +287,10 @@ async def _build_knowledge_graph(
         edges = live_edges
         source_val = "live"
     else:
-        # Fall back to mock with source set to mock_fallback
+        # Honest empty state when no graph nodes or documents are available
         nodes = []
-        for n in MOCK_NODES:
-            nodes.append(dict(n))
         edges = []
-        for e in MOCK_EDGES:
-            edges.append(dict(e))
-        source_val = "mock_fallback"
+        source_val = "empty"
 
     t_centrality = time.perf_counter() - t_centrality_start
     t_total = time.perf_counter() - t_start

@@ -18,7 +18,15 @@ SecuritySessionLocal = async_sessionmaker(bind=security_engine, class_=AsyncSess
 
 # Override session dependencies
 import app.db.session as db_session_module
-db_session_module.AsyncSessionLocal = SecuritySessionLocal
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    orig_session_local = db_session_module.AsyncSessionLocal
+    db_session_module.AsyncSessionLocal = SecuritySessionLocal
+    try:
+        yield
+    finally:
+        db_session_module.AsyncSessionLocal = orig_session_local
 
 from app.main import app
 from app.db.base import Base
@@ -31,7 +39,6 @@ from app.models.user import User
 
 
 async def init_security_db():
-    db_session_module.AsyncSessionLocal = SecuritySessionLocal
     async with security_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

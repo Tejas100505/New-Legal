@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useAuthStore } from '@/features/auth/store';
 import type { 
   DocumentAnnotation, ViewerTab
 } from '@/types';
@@ -47,7 +48,7 @@ export const useDocumentViewerStore = create<DocumentViewerState>((set) => ({
       ...ann,
       id: `ann_${Date.now()}`,
       createdAt: new Date().toISOString(),
-      createdBy: 'Sarah Chen',
+      createdBy: useAuthStore.getState().user?.name || useAuthStore.getState().user?.email || 'User',
     };
     return { annotations: [...state.annotations, newAnn] };
   }),

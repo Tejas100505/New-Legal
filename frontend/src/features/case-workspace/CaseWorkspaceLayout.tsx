@@ -10,7 +10,7 @@ import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/atoms/Badge';
 import { Spinner } from '@/components/atoms/Spinner';
-import type { LegalCase } from '@/types';
+import type { LegalCase, CaseStatus } from '@/types';
 import { CaseWorkspaceContext } from './CaseWorkspaceContext';
 
 const CASE_TABS = [
@@ -57,7 +57,7 @@ export function CaseWorkspaceLayout() {
         name: c.name,
         caseNumber: c.case_number || `CASE-${c.id.slice(0, 8).toUpperCase()}`,
         description: c.description || '',
-        status: c.status || 'active',
+        status: c.status as CaseStatus,
         priority: c.priority || 'high',
         riskLevel: c.risk_level || 'none',
         client: c.client || '',
@@ -93,8 +93,10 @@ export function CaseWorkspaceLayout() {
     : caseData?.priority === 'medium' ? 'info'
     : 'default';
 
-  const statusVariant = caseData?.status === 'active' ? 'success'
-    : caseData?.status === 'review' ? 'warning'
+  const statusVariant = caseData?.status === 'completed' ? 'success'
+    : caseData?.status === 'in_progress' ? 'warning'
+    : caseData?.status === 'under_review' ? 'purple'
+    : caseData?.status === 'created' ? 'info'
     : 'default';
 
   return (
@@ -124,7 +126,7 @@ export function CaseWorkspaceLayout() {
                 {caseData && (
                   <>
                     <Badge variant={statusVariant} size="xs" dot>
-                      {caseData.status.toUpperCase()}
+                      {caseData.status.replace(/_/g, ' ').toUpperCase()}
                     </Badge>
                     <Badge variant={priorityVariant} size="xs">
                       {caseData.priority.toUpperCase()} PRIORITY

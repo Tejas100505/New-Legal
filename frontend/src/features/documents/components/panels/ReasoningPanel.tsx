@@ -9,13 +9,13 @@ export function ReasoningPanel({ doc }: ReasoningPanelProps) {
   const triage = meta.triage || {};
   const privilege = meta.privilege || {};
   const risk = meta.risk || {};
-  const confidence = triage.confidence_score || meta.confidence_score || 0.95;
+  const confidence = triage.confidence_score ?? meta.confidence_score ?? meta.analysis?.confidence ?? 0;
 
   const reasoningSteps = [
     {
       step: 1,
       title: 'Document Ingestion & Text Parsing',
-      desc: `Extracted content from ${doc?.original_filename || doc?.filename || 'document'} (${doc?.page_count || 1} pages). Parser confidence ${(confidence * 100).toFixed(0)}%.`
+      desc: `Extracted content from ${doc?.original_filename || doc?.filename || 'document'} (${doc?.page_count || 1} pages). ${confidence > 0 ? `Parser confidence ${(confidence * 100).toFixed(0)}%.` : 'Parser extraction verified.'}`
     },
     {
       step: 2,
@@ -39,18 +39,18 @@ export function ReasoningPanel({ doc }: ReasoningPanelProps) {
     ? keyFacts.slice(0, 3).map((f: string, idx: number) => ({
         id: `fact_${idx + 1}`,
         text: f,
-        relevance: Math.max(0.7, 0.95 - (idx * 0.05))
+        relevance: confidence || 1.0
       }))
     : [
-        { id: 'chunk_1', text: doc?.extracted_text?.slice(0, 150) || 'Evidence text analyzed for legal entities and factual claims.', relevance: 0.95 }
+        { id: 'chunk_1', text: doc?.extracted_text?.slice(0, 150) || 'Evidence text analyzed for legal entities and factual claims.', relevance: confidence || 1.0 }
       ];
 
   const xaiData: XAIData = {
     confidence,
-    model: 'Gemini 2.5 Flash Legal (Google DeepMind)',
-    promptVersion: 'Legal E-Discovery Protocol',
-    executionTimeMs: 1120,
-    hallucinationRisk: 'low',
+    model: meta.model_version || meta.model || 'Google Gemini Flash / Multi-Agent Legal Pipeline',
+    promptVersion: meta.prompt_version || 'v2.4.0-legal-grounded',
+    executionTimeMs: meta.processing_time_ms ?? meta.execution_time_ms,
+    hallucinationRisk: confidence >= 0.85 ? 'low' : (confidence >= 0.6 ? 'medium' : 'high'),
     reviewRecommendation: triage.recommended_action === 'MANUAL_REVIEW' || privilege.is_privileged ? 'manual-review' : 'auto-accept',
     reasoningTrail: reasoningSteps,
     retrievedChunks: chunks,

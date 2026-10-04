@@ -58,7 +58,13 @@ async def _get_document_text(document_id: uuid.UUID, db: AsyncSession, current_u
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
     await check_document_access(doc, current_user, db)
-    return getattr(doc, "extracted_text", None) or "Document text missing."
+    text = getattr(doc, "extracted_text", None)
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Document {document_id} has no extracted text to analyze."
+        )
+    return text
 
 
 @router.get(
@@ -305,7 +311,7 @@ async def cluster_documents(
             avg_embedding = np.mean(valid_embeddings, axis=0).tolist()
             doc_embedding = avg_embedding
         else:
-            if not text or text == "Document text missing.":
+            if not text or not text.strip():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Document {doc_id} has no text or embeddings available to cluster."

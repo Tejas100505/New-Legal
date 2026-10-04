@@ -253,7 +253,7 @@ async def get_document_content(
         "filename": doc.original_filename,
         "content_type": doc.content_type,
         "page_count": doc.page_count or 1,
-        "extracted_text": doc.extracted_text or f"Sample extracted text for document {doc.original_filename}.",
+        "extracted_text": doc.extracted_text or None,
         "doc_metadata": doc.doc_metadata or {},
     }
 

@@ -85,7 +85,7 @@ class EntityExtractionOutput(BaseModel):
     document_id: str
     entities: Entities
     entity_list: List[EntityItem] = []
-    confidence_score: float = 0.95
+    confidence_score: float = 0.0  # Populated at runtime based on extraction quality
 
 
 # Alias for compatibility with existing references
@@ -107,7 +107,13 @@ class EntityExtractionAgent(BaseAgent[EntityExtractionInput, EntityExtractionOut
             input_model=EntityExtractionInput,
             output_model=EntityExtractionOutput,
         )
-        self.nlp = get_ner_pipeline()
+        self._nlp = None
+
+    @property
+    def nlp(self) -> spacy.language.Language:
+        if self._nlp is None:
+            self._nlp = get_ner_pipeline()
+        return self._nlp
 
     async def _execute(self, validated_input: EntityExtractionInput) -> dict:
         logger.info(f"[{self.name}] Extracting entities for document {validated_input.document_id}")
@@ -230,7 +236,7 @@ class EntityExtractionAgent(BaseAgent[EntityExtractionInput, EntityExtractionOut
                 "document_id": validated_input.document_id,
                 "entities": entities.model_dump(),
                 "entity_list": [item.model_dump() for item in entity_list],
-                "confidence_score": 0.95,
+                "confidence_score": min(0.85, 0.5 + 0.05 * len(entity_list)),  # Heuristic: scales with entity count, capped at 0.85 (not calibrated)
             }
         except Exception as e:
             logger.error(f"Entity extraction failed: {e}")

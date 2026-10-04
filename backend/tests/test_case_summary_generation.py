@@ -80,7 +80,70 @@ async def override_get_db():
         finally:
             await session.close()
 
-app.dependency_overrides[get_db] = override_get_db
+from sqlalchemy import delete
+
+PRIMARY_CASE_ID = uuid.UUID("8d8389d4-2534-452d-85b4-65efe5b8e1c3")
+PROTECTED_CASE_IDS = {
+    uuid.UUID("685b2574-bda0-43aa-b1ec-b75ff3faee3e"),
+    uuid.UUID("83969a81-07ab-40f6-8e6a-3bdb3a1377de"),
+}
+ALL_PROTECTED_CASE_IDS = PROTECTED_CASE_IDS | {PRIMARY_CASE_ID}
+RESTORED_DOC_ID = uuid.UUID("8539d172-7a46-4eec-95ea-af627211766e")
+
+_tracked_case_ids: set[uuid.UUID] = set()
+_tracked_doc_ids: set[uuid.UUID] = set()
+_tracked_summary_ids: set[uuid.UUID] = set()
+_tracked_user_ids: set[uuid.UUID] = set()
+
+@pytest.fixture(scope="module", autouse=True)
+def override_db():
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+async def _async_cleanup():
+    overlap = _tracked_case_ids.intersection(ALL_PROTECTED_CASE_IDS)
+    if overlap:
+        raise ValueError(f"SAFETY VIOLATION: Protected case ID in tracked cases: {overlap}")
+    if RESTORED_DOC_ID in _tracked_doc_ids:
+        raise ValueError(f"SAFETY VIOLATION: Restored doc ID in tracked docs: {RESTORED_DOC_ID}")
+
+    async with TestSession() as session:
+        if _tracked_case_ids:
+            extra_summaries = (await session.execute(
+                select(CaseSummary.id).where(CaseSummary.case_id.in_(list(_tracked_case_ids)))
+            )).scalars().all()
+            _tracked_summary_ids.update(extra_summaries)
+
+            extra_docs = (await session.execute(
+                select(Document.id).where(Document.case_id.in_(list(_tracked_case_ids)))
+            )).scalars().all()
+            _tracked_doc_ids.update(extra_docs)
+
+        if _tracked_summary_ids:
+            await session.execute(delete(CaseSummary).where(CaseSummary.id.in_(list(_tracked_summary_ids))))
+        if _tracked_doc_ids:
+            await session.execute(delete(Document).where(Document.id.in_(list(_tracked_doc_ids))))
+        if _tracked_case_ids:
+            await session.execute(delete(Case).where(Case.id.in_(list(_tracked_case_ids))))
+        if _tracked_user_ids:
+            await session.execute(delete(User).where(User.id.in_(list(_tracked_user_ids))))
+        await session.commit()
+    _tracked_summary_ids.clear()
+    _tracked_doc_ids.clear()
+    _tracked_case_ids.clear()
+    _tracked_user_ids.clear()
+
+@pytest.fixture(autouse=True)
+def cleanup_test_artifacts():
+    yield
+    if _tracked_case_ids or _tracked_doc_ids or _tracked_summary_ids or _tracked_user_ids:
+        import concurrent.futures
+        import asyncio
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(lambda: asyncio.run(_async_cleanup())).result()
 
 client = TestClient(app)
 
@@ -145,6 +208,7 @@ async def get_or_create_user_token(session: AsyncSession, user_id: str, email: s
         session.add(user)
         await session.commit()
         await session.refresh(user)
+        _tracked_user_ids.add(user.id)
 
     token = create_access_token(user_id=str(user.id), email=user.email, role=user.role, token_version=user.token_version)
     return str(user.id), token
@@ -163,6 +227,7 @@ async def create_fixture_case(session: AsyncSession, creator_sub: str, name: str
     session.add(case)
     await session.commit()
     await session.refresh(case)
+    _tracked_case_ids.add(case.id)
     return case
 
 
@@ -200,6 +265,7 @@ async def create_fixture_doc(
     session.add(doc)
     await session.commit()
     await session.refresh(doc)
+    _tracked_doc_ids.add(doc.id)
     return doc
 
 
@@ -351,6 +417,7 @@ async def test_state_machine_row2_generating_serves_previous_complete():
             created_at=datetime.now(timezone.utc) - timedelta(seconds=10),
         )
         session.add(prev)
+        _tracked_summary_ids.add(prev.id)
         await session.flush()
 
         # Write currently generating (now)
@@ -363,6 +430,7 @@ async def test_state_machine_row2_generating_serves_previous_complete():
             created_at=datetime.now(timezone.utc),
         )
         session.add(in_flight)
+        _tracked_summary_ids.add(in_flight.id)
         await session.commit()
 
     token = create_access_token(user_id=user_sub, email="lawyer@law.com", role=UserRole.LAWYER)
@@ -526,7 +594,7 @@ async def test_state_machine_row6_staleness():
         old_hash = compute_case_data_hash([doc])
 
         repo = CaseSummaryRepository(session)
-        await repo.create(
+        summary_record = await repo.create(
             case_id=case.id,
             status=CaseSummaryStatus.COMPLETE,
             source_doc_count=1,
@@ -535,6 +603,7 @@ async def test_state_machine_row6_staleness():
             model_version="gemini-2.5-flash",
             generated_at=datetime.now(timezone.utc),
         )
+        _tracked_summary_ids.add(summary_record.id)
         await session.commit()
 
         # Mutate document updated_at to simulate processing update
@@ -669,6 +738,8 @@ async def test_real_423_document_case_summary_generation_and_budget():
     )
     assert resp.status_code == 200, f"Generate failed: {resp.text}"
     data = resp.json()
+    if "id" in data and data["id"]:
+        _tracked_summary_ids.add(uuid.UUID(data["id"]))
 
     # 1. Assert call count <= 5
     calls_made = get_case_summary_llm_call_count()

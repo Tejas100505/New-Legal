@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Calendar, FileText, Search, Filter,
@@ -17,10 +18,10 @@ import type { CaseStatus, CasePriority } from '@/types';
 import api from '@/lib/api';
 
 const statusVariants: Record<CaseStatus, 'info' | 'warning' | 'purple' | 'default' | 'success'> = {
-  active: 'info',
-  pending: 'warning',
-  review: 'purple',
-  closed: 'default',
+  created: 'info',
+  in_progress: 'warning',
+  under_review: 'purple',
+  completed: 'success',
   archived: 'default',
 };
 
@@ -48,6 +49,7 @@ interface LegalCase {
 }
 
 export function CasesPage() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CaseStatus | 'all'>('all');
   const [showCreate, setShowCreate] = useState(false);
@@ -90,7 +92,7 @@ export function CasesPage() {
           name: c.name,
           caseNumber: c.case_number || `CASE-${c.id.split('-')[0].toUpperCase()}`,
           description: c.description || '',
-          status: (c.status || 'active') as CaseStatus,
+          status: c.status as CaseStatus,
           priority: (c.priority || 'high') as CasePriority,
           riskLevel,
           createdAt: c.created_at,
@@ -208,11 +210,11 @@ export function CasesPage() {
         </div>
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-slate-500" />
-          {(['all', 'active', 'pending', 'review', 'closed'] as const).map((status) => (
+          {(['all', 'created', 'in_progress', 'under_review', 'completed', 'archived'] as const).map((status) => (
             <button key={status} onClick={() => setStatusFilter(status)}
-              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize',
                 statusFilter === status ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50')}>
-              {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === 'all' ? 'All' : status.replace(/_/g, ' ')}
             </button>
           ))}
         </div>
@@ -238,12 +240,15 @@ export function CasesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredCases.map((c, i) => (
             <motion.div key={c.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <div className={cn(
-                'group rounded-xl p-5 h-full',
-                'bg-slate-900/50 backdrop-blur-xl border border-slate-800/50',
-                'hover:border-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/5',
-                'hover:-translate-y-0.5 transition-all duration-300 cursor-pointer'
-              )}>
+              <div 
+                onClick={() => navigate(`/cases/${c.id}/overview`)}
+                className={cn(
+                  'group rounded-xl p-5 h-full',
+                  'bg-slate-900/50 backdrop-blur-xl border border-slate-800/50',
+                  'hover:border-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/5',
+                  'hover:-translate-y-0.5 transition-all duration-300 cursor-pointer'
+                )}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0 pr-2">
                     <h3 className="text-sm font-semibold text-slate-100 leading-snug">{c.name}</h3>
@@ -269,7 +274,7 @@ export function CasesPage() {
                 <p className="text-xs text-slate-500 line-clamp-2 mb-3">{c.description}</p>
 
                 <div className="flex flex-wrap gap-1.5 mb-3">
-                  <Badge variant={statusVariants[c.status]} size="xs" dot>{c.status}</Badge>
+                  <Badge variant={statusVariants[c.status] || 'default'} size="xs" dot>{c.status.replace(/_/g, ' ')}</Badge>
                   <Badge variant={priorityVariants[c.priority]} size="xs">{c.priority}</Badge>
                   {c.riskLevel !== 'none' && (
                     <Badge variant={c.riskLevel === 'critical' ? 'danger' : c.riskLevel === 'high' ? 'warning' : 'default'} size="xs">

@@ -55,6 +55,19 @@ export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
         const privAnalysis: PrivilegeAnalysis | null = d.doc_metadata?.privilege_analysis || null;
         const isPrivileged = privAnalysis ? privAnalysis.is_privileged : (d.status === 'flagged');
 
+        // Normalize entities: DB stores as {type: [values]} dict, not array
+        const rawEntities = d.doc_metadata?.entities;
+        const normalizedEntities: any[] = rawEntities && typeof rawEntities === 'object' && !Array.isArray(rawEntities)
+          ? Object.entries(rawEntities).flatMap(([type, texts]) =>
+              (Array.isArray(texts) ? texts : []).map((text: string, i: number) => ({
+                id: `${type}-${i}`,
+                type,
+                text,
+                confidence: 1.0,
+              }))
+            )
+          : Array.isArray(rawEntities) ? rawEntities : [];
+
         return {
           id: d.id,
           name: d.original_filename || d.filename,
@@ -66,7 +79,7 @@ export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
           ocrAccuracy: 0.98,
           ocrConfidence: 'high',
           pageCount: d.page_count || 1,
-          entityCount: d.doc_metadata?.entities?.length || 0,
+          entityCount: normalizedEntities.length,
           uploadedBy: d.doc_metadata?.uploaded_by || 'Reviewer',
           uploadedAt: d.created_at,
           processedAt: d.updated_at,
@@ -74,7 +87,7 @@ export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
           version: 1,
           isPrivileged,
           riskLevel: isPrivileged ? 'critical' : 'low',
-          extractedEntities: d.doc_metadata?.entities || [],
+          extractedEntities: normalizedEntities,
           extracted_text: d.extracted_text || null,
           doc_metadata: d.doc_metadata || null,
         };
@@ -237,7 +250,7 @@ export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
   const getXAIData = (doc: LegalDocument): XAIData => {
     const priv = doc.doc_metadata?.privilege_analysis;
     const isPriv = priv ? priv.is_privileged : doc.isPrivileged;
-    const conf = priv ? priv.confidence : 0.95;
+    const conf = priv?.confidence ?? doc.doc_metadata?.confidence_score ?? 0;
 
     const allCitations = [
       ...(doc.doc_metadata?.summaries?.flatMap((s) => s.citations || []) || []),
@@ -246,10 +259,10 @@ export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
 
     return {
       confidence: conf,
-      model: 'Google Gemini Flash (Pipeline Stage 7)',
+      model: doc.doc_metadata?.model_version || 'Google Gemini Flash / Multi-Agent Legal Pipeline',
       promptVersion: 'v2.4.0-legal-grounded',
-      executionTimeMs: 940,
-      hallucinationRisk: conf > 0.85 ? 'low' : 'medium',
+      executionTimeMs: doc.doc_metadata?.processing_time_ms ?? doc.doc_metadata?.execution_time_ms ?? 0,
+      hallucinationRisk: conf > 0.85 ? 'low' : (conf > 0.6 ? 'medium' : 'high'),
       reviewRecommendation: isPriv ? 'flagged' : 'manual-review',
       reasoningTrail: [
         {
@@ -277,9 +290,9 @@ export function AIReviewPage({ caseId }: AIReviewPageProps = {}) {
         text: span,
         relevance: conf,
       })) || [
-        { id: 'source_doc', text: doc.extracted_text?.slice(0, 150) || 'Source document text', relevance: 0.95 }
+        { id: 'source_doc', text: doc.extracted_text?.slice(0, 150) || 'Source document text', relevance: conf }
       ],
-      evidenceLinks: priv?.citations || ['grounded_chunk_citation'],
+      evidenceLinks: priv?.citations ?? [],
       citations: allCitations.map((c) => ({
         source: 'Verified Document Grounding',
         text: c,

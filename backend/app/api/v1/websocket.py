@@ -61,7 +61,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-# ── Agent IDs for simulation ────────────────────────────────────────────────
+# ── Agent IDs for pipeline status WebSocket broadcasts ──────────────────────
 
 AGENT_IDS = [
     "ocr", "classification", "entity_extraction", "relationship_extraction",

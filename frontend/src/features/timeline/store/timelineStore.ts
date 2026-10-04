@@ -4,7 +4,7 @@ import api from '@/lib/api';
 
 interface TimelineState {
   events: TimelineEvent[];
-  source: 'live' | 'mock_fallback';
+  source: 'live' | 'empty';
   selectedEventId: string | null;
   filters: TimelineFilters;
   zoomLevel: TimelineZoomLevel;
@@ -48,9 +48,8 @@ export const useTimelineStore = create<TimelineState>((set) => ({
       const url = caseId ? `/timeline?caseId=${caseId}` : '/timeline';
       const response = await api.get(url);
       const raw = Array.isArray(response.data) ? response.data : (response.data?.events || []);
-      // Filter out any mock fallbacks from the backend if they get returned and normalize event fields
+      // Normalize event fields from backend response
       const liveEvents = raw
-        .filter((e: any) => e.source !== 'mock_fallback')
         .map((e: any) => ({
           ...e,
           id: String(e.id),

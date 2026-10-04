@@ -25,10 +25,10 @@ export function SemanticSearchPage() {
   // Filters
   const [selectedCases, setSelectedCases] = useState<string[]>([]);
   
-  // Suggestions (mocked)
+  // Autocomplete suggestions (not yet populated — future enhancement)
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
-  // Autocomplete mock logic
+  // Show dropdown when query has content
   useEffect(() => {
     if (query.length > 2) {
       setShowDropdown(true);

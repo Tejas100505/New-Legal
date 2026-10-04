@@ -65,7 +65,7 @@ class TriageOutput(BaseModel):
     reprocessing_details: Optional[Dict[str, Any]] = None
     reasoning: str = Field(..., description="Human-readable legal reasoning explaining the priority and routing")
     signal_summary: Dict[str, Any] = Field(default_factory=dict)
-    confidence_score: float = 0.95
+    confidence_score: float = 0.0  # Populated at runtime; rule-based triage, not ML-calibrated
     human_oversight_mandatory: bool = True
 
 
@@ -313,6 +313,6 @@ class TriageOrchestratorAgent(BaseAgent[TriageInput, TriageOutput]):
             "reprocessing_details": reprocessing_details,
             "reasoning": full_reasoning,
             "signal_summary": signal_summary,
-            "confidence_score": 0.95,
+            "confidence_score": 0.70,  # Rule-based deterministic triage; not ML-calibrated
             "human_oversight_mandatory": True,
         }

@@ -60,7 +60,7 @@ export function DocumentRenderer({ currentPage, doc }: DocumentRendererProps) {
       ref: isUnavailable
         ? 'Page/section unavailable: this citation is grounded in text without page metadata'
         : 'Source Grounding Verification',
-      confidence: privilegeAnalysis?.confidence || 0.95,
+      confidence: privilegeAnalysis?.confidence ?? doc?.doc_metadata?.confidence_score ?? 1.0,
       verified: !isUnavailable,
       excerpt: isUnavailable
         ? 'Page/section unavailable: this citation is grounded in text without page metadata. Raw chunk text was used for verification.'

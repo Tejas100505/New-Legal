@@ -24,7 +24,7 @@ export function ShareCaseModal({
     e.preventDefault();
     if (!email) return;
     
-    // In a real app, we'd lookup the user ID by email. Here we just mock it.
+    // Session-only sharing — assignments are stored in client state and not persisted to the server.
     assignCase({ caseId, userId: email, role });
     setEmail('');
   };
@@ -53,7 +53,8 @@ export function ShareCaseModal({
             
             <div className="p-5 space-y-6">
               <div>
-                <p className="text-xs text-slate-400 mb-3">Invite team members to collaborate on <strong className="text-slate-200">{caseName}</strong>.</p>
+                <p className="text-xs text-slate-400 mb-1">Invite team members to collaborate on <strong className="text-slate-200">{caseName}</strong>.</p>
+                <p className="text-[10px] text-amber-500/80 mb-3">⚠ Sharing is session-only and not yet persisted to the server.</p>
                 <form onSubmit={handleInvite} className="flex gap-2">
                   <div className="relative flex-1">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />

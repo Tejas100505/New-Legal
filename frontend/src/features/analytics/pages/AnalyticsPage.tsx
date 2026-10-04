@@ -88,7 +88,9 @@ export function AnalyticsPage() {
     let bUnder80 = 0;
 
     documents.forEach(d => {
-      const score = (d.doc_metadata?.confidence_score ?? 0.95) * 100;
+      const rawScore = d.doc_metadata?.confidence_score ?? d.doc_metadata?.ocr_confidence;
+      if (rawScore === undefined || rawScore === null) return;
+      const score = rawScore * 100;
       if (score >= 95) b95_100++;
       else if (score >= 90) b90_94++;
       else if (score >= 80) b80_89++;
@@ -155,10 +157,10 @@ export function AnalyticsPage() {
     const batches = [];
     for (let i = 0; i < documents.length; i += batchSize) {
       const slice = documents.slice(i, i + batchSize);
-      const avgConf = slice.reduce((sum, d) => {
-        const conf = d.doc_metadata?.triage?.confidence_score ?? d.doc_metadata?.confidence_score ?? 0.95;
-        return sum + conf;
-      }, 0) / (slice.length || 1);
+      const scoredDocs = slice.filter(d => (d.doc_metadata?.triage?.confidence_score ?? d.doc_metadata?.confidence_score) !== undefined);
+      const avgConf = scoredDocs.length > 0
+        ? scoredDocs.reduce((sum, d) => sum + (d.doc_metadata?.triage?.confidence_score ?? d.doc_metadata?.confidence_score ?? 0), 0) / scoredDocs.length
+        : 0;
       
       const dateLabel: string = slice[0]?.created_at ? new Date(slice[0].created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : `Batch ${batches.length + 1}`;
       batches.push({

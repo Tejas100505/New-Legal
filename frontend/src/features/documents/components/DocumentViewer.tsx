@@ -31,9 +31,9 @@ export function DocumentViewer({ currentPage, onPageChange, doc }: DocumentViewe
       case 'annotations':
         return <AnnotationLayer />;
       case 'search':
-        return <DocumentSearch onJumpToPage={onPageChange} />;
+        return <DocumentSearch onJumpToPage={onPageChange} doc={doc} />;
       case 'discussion':
-        return <CommentsPanel documentId={doc?.id || 'doc_001'} />;
+        return <CommentsPanel documentId={doc?.id || ''} />;
       case 'summary':
       default:
         return <SummaryPanel doc={doc} />;

@@ -63,11 +63,11 @@ class ClassificationAgent(BaseAgent[ClassificationInput, ClassificationOutput]):
         fallback_type = "Contracts" if ("contract" in text_lower or "agreement" in text_lower) else "Document"
 
         if not self.llm:
-            logger.warning("LLM not configured, using mock classification.")
+            logger.warning("LLM not configured, using keyword-based classification fallback (no AI).")
             return {
                 "document_type": fallback_type,
                 "is_privileged": "privilege" in text_lower or "attorney" in text_lower,
-                "confidence_score": 0.95
+                "confidence_score": 0.40  # Honest: keyword-only heuristic, no LLM
             }
             
         prompt = PromptTemplate.from_template(
@@ -145,16 +145,16 @@ class ClassificationAgent(BaseAgent[ClassificationInput, ClassificationOutput]):
             return {
                 "document_type": result.get("document_type", fallback_type),
                 "is_privileged": result.get("is_privileged", False),
-                "confidence_score": float(result.get("confidence_score", 0.95))
+                "confidence_score": float(result.get("confidence_score", 0.80))
             }
         except Exception as e:
             if is_quota_error(e) or isinstance(e, QuotaExhaustedException):
                 raise QuotaExhaustedException(f"[{self.name}] LLM quota exhausted on both keys: {e}") from e
             logger.error(f"Classification failed: {e}")
-            # Fallback for non-quota errors
+            # Fallback for non-quota errors — honest low confidence
             return {
                 "document_type": fallback_type,
                 "is_privileged": "privilege" in text_lower or "attorney" in text_lower,
-                "confidence_score": 0.95
+                "confidence_score": 0.35  # Honest: error-path heuristic only
             }
 

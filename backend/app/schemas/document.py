@@ -95,6 +95,7 @@ class PipelineStageResponse(BaseModel):
     order: int
     agent_ids: list[str] = Field(default_factory=list, alias="agentIds")
     status: str
+    evidence: str = Field("none", description="Evidence basis: status_history, audit_log, current_status_inference, none")
     completed_at: str | None = Field(None, alias="completedAt")
     duration_ms: int | None = Field(None, alias="durationMs")
 
@@ -111,8 +112,11 @@ class PipelineStatusResponse(BaseModel):
     paused_stage: str | None = Field(None, alias="pausedStage")
     paused_reason: str | None = Field(None, alias="pausedReason")
     last_reason: str | None = Field(None, alias="lastReason")
+    history_available: bool = Field(False, alias="historyAvailable")
+    stages_with_evidence: int = Field(0, alias="stagesWithEvidence")
+    total_stages: int = Field(10, alias="totalStages")
     stages: list[PipelineStageResponse]
-    overall_progress: int = Field(alias="overallProgress")
+    overall_progress: int | None = Field(None, alias="overallProgress")
     started_at: str | None = Field(None, alias="startedAt")
     completed_at: str | None = Field(None, alias="completedAt")
     estimated_completion_at: str | None = Field(None, alias="estimatedCompletionAt")

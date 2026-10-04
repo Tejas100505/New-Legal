@@ -4,43 +4,41 @@ import { Search, ChevronRight, FileText } from 'lucide-react';
 
 interface DocumentSearchProps {
   onJumpToPage: (page: number) => void;
+  doc?: any;
 }
 
-export function DocumentSearch({ onJumpToPage }: DocumentSearchProps) {
+export function DocumentSearch({ onJumpToPage, doc }: DocumentSearchProps) {
   const searchQuery = useDocumentViewerStore((s) => s.searchQuery);
   const setSearchQuery = useDocumentViewerStore((s) => s.setSearchQuery);
 
-  const mockText = `MUTUAL NON-DISCLOSURE AGREEMENT
-This Mutual Non-Disclosure Agreement (the "Agreement") is entered into as of May 14, 2023 (the "Effective Date") by and between Meridian Corporation, a California Corporation with offices at 100 Innovation Way, San Jose, California (the "Disclosing Party") and John Miller, an individual residing in Austin, Texas (the "Receiving Party").
+  const textToSearch = doc?.extracted_text || '';
 
-WHEREAS, the Disclosing Party has developed certain proprietary manufacturing processes and chemical mechanical planarization technologies (collectively, "Proprietary Information") related to high-performance semiconductor components;
-
-NOW, THEREFORE, the parties agree that the Receiving Party shall keep strictly confidential all Proprietary Information and shall not disclose or exploit such information for a period of five (5) years from disclosure.
-
-In the event of a breach or threatened breach, the Disclosing Party shall be entitled to seek injunctive relief without the necessity of posting a bond, as verified in Smith v. Johnson (2019) 14 Cal.4th 23. This Agreement shall be governed by and construed in accordance with the laws of the State of California.`;
-
-  // Parse lines and simulate occurrences
+  // Parse lines and find occurrences in real document text
   const results = useMemo(() => {
-    if (!searchQuery || searchQuery.length < 2) return [];
+    if (!searchQuery || searchQuery.length < 2 || !textToSearch) return [];
     const query = searchQuery.toLowerCase();
     const matches: Array<{ page: number; text: string; snippet: string }> = [];
 
-    // Simulate search matches across mock pages
-    const paragraphs = mockText.split('\n\n');
-    paragraphs.forEach((p, idx) => {
+    const paragraphs = textToSearch.split(/\n+/);
+    paragraphs.forEach((p: string, idx: number) => {
       if (p.toLowerCase().includes(query)) {
-        const sentence = p.split('.').find((s) => s.toLowerCase().includes(query)) || p;
-        const pageNum = (idx % 3) + 1; // distribute matches across simulated pages 1-3
+        const sentences = p.split(/(?<=[.?!])\s+/);
+        const matchSentence = sentences.find((s: string) => s.toLowerCase().includes(query)) || p;
+        const totalPages = doc?.page_count || 1;
+        const pageNum = Math.min(
+          totalPages,
+          Math.max(1, Math.floor((idx / Math.max(1, paragraphs.length)) * totalPages) + 1)
+        );
         matches.push({
           page: pageNum,
           text: query,
-          snippet: sentence.trim() + '.',
+          snippet: matchSentence.trim(),
         });
       }
     });
 
-    return matches;
-  }, [searchQuery]);
+    return matches.slice(0, 50);
+  }, [searchQuery, textToSearch, doc?.page_count]);
 
   return (
     <div className="flex flex-col gap-4 text-left">

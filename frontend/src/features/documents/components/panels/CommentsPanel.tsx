@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils';
 
 export function CommentsPanel({ documentId }: { documentId: string }) {
   const { comments, addComment, setTyping, typingUsers } = useCollaborationStore();
-  const user = useAuthStore((s) => s.user) || ({ id: "usr_001", email: "user@example.com", name: "User", role: "lawyer", firm: "Firm", barNumber: "123", createdAt: "", lastLoginAt: "" });
+  const user = useAuthStore((s) => s.user);
   const [text, setText] = useState('');
   
   const typingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -25,7 +25,7 @@ export function CommentsPanel({ documentId }: { documentId: string }) {
   };
 
   const handleSend = () => {
-    if (!text.trim()) return;
+    if (!text.trim() || !user) return;
 
     // Simple mention parsing
     const mentions = text.match(/@\w+/g)?.map(m => m.substring(1)) || [];
@@ -33,7 +33,7 @@ export function CommentsPanel({ documentId }: { documentId: string }) {
     addComment({
       documentId,
       userId: user.id,
-      userName: user.name,
+      userName: user.name || user.email || 'Authenticated User',
       text: text.trim(),
       mentions
     });
@@ -111,12 +111,13 @@ export function CommentsPanel({ documentId }: { documentId: string }) {
                 handleSend();
               }
             }}
-            placeholder="Type a comment, use @ to mention..."
+            placeholder={user ? "Type a comment, use @ to mention..." : "Sign in to add a comment..."}
+            disabled={!user}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-10 py-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 resize-none min-h-[80px]"
           />
           <button
             onClick={handleSend}
-            disabled={!text.trim()}
+            disabled={!text.trim() || !user}
             className="absolute bottom-2.5 right-2.5 p-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors"
           >
             <Send className="h-3 w-3" />

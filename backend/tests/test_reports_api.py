@@ -18,6 +18,16 @@ reports_engine = create_async_engine(TEST_DB_URL, echo=False)
 ReportsSessionLocal = async_sessionmaker(bind=reports_engine, class_=AsyncSession, expire_on_commit=False)
 
 import app.db.session as db_session_module
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    orig_session_local = db_session_module.AsyncSessionLocal
+    db_session_module.AsyncSessionLocal = ReportsSessionLocal
+    try:
+        yield
+    finally:
+        db_session_module.AsyncSessionLocal = orig_session_local
+
 from app.main import app
 from app.db.base import Base
 from app.models.case import Case, CaseStatus, CasePriority
@@ -27,7 +37,6 @@ from app.services.case_scoping import get_case_scoped_document_ids
 
 
 async def init_test_db():
-    db_session_module.AsyncSessionLocal = ReportsSessionLocal
     async with reports_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

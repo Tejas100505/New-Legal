@@ -51,8 +51,17 @@ class RetrievalOutput(BaseModel):
     confidence_score: float = 1.0
 
 
-class CrossEncoderMock:
-    """Mock CrossEncoder that scores based on simple term overlap for testing."""
+class TermOverlapReranker:
+    """Lightweight deterministic reranker using query-document term overlap.
+    
+    This is NOT a neural cross-encoder. It provides a simple lexical
+    relevance signal by computing the fraction of query terms that appear
+    in the document. Used as one component of the hybrid scoring formula:
+    final_score = 0.4 * vector + 0.3 * BM25 + 0.3 * term_overlap
+    
+    Suitable for ₹0 infrastructure where a GPU-backed cross-encoder
+    is not available.
+    """
     def predict(self, pairs: List[List[str]]) -> List[float]:
         scores = []
         for query, doc in pairs:
@@ -66,7 +75,9 @@ class CrossEncoderMock:
 class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
     """
     Hybrid Retrieval Agent.
-    Combines Vector Search (passed as candidates), BM25, and Cross-Encoder reranking.
+    Combines Vector Search (passed as candidates), BM25, and deterministic
+    term-overlap reranking. Note: the reranker is NOT a neural cross-encoder;
+    it uses lexical overlap as a lightweight relevance signal.
     """
     
     def __init__(self):
@@ -76,7 +87,7 @@ class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
             input_model=RetrievalInput,
             output_model=RetrievalOutput,
         )
-        self.cross_encoder = CrossEncoderMock()
+        self.reranker = TermOverlapReranker()
 
     def filter_metadata(self, chunks: List[ChunkData], filters: Dict[str, Any]) -> List[ChunkData]:
         if not filters:
@@ -114,16 +125,16 @@ class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
         tokenized_query = re.findall(r"\b\w+\b", validated_input.query.lower())
         bm25_scores = bm25.get_scores(tokenized_query)
         
-        # 3. Cross-Encoder Reranking
+        # 3. Term-Overlap Reranking (deterministic lexical, NOT neural cross-encoder)
         pairs = [[validated_input.query, chunk.text] for chunk in filtered_chunks]
-        ce_scores = self.cross_encoder.predict(pairs)
+        rerank_scores = self.reranker.predict(pairs)
         
-        # 4. Hybrid Combination (Alpha = 0.4 Vector, 0.3 BM25, 0.3 Cross-Encoder)
+        # 4. Hybrid Combination (0.4 Vector, 0.3 BM25, 0.3 Term-Overlap)
         results = []
         for i, chunk in enumerate(filtered_chunks):
             v_score = chunk.vector_score or 0.0
             b_score = bm25_scores[i] / (max(bm25_scores) + 1e-9) # Normalize BM25
-            c_score = ce_scores[i]
+            c_score = rerank_scores[i]
             
             final_score = (0.4 * v_score) + (0.3 * b_score) + (0.3 * c_score)
 
@@ -143,7 +154,7 @@ class RetrievalAgent(BaseAgent[RetrievalInput, RetrievalOutput]):
                 page=chunk.page,
                 citation=citation,
                 score=round(final_score, 4),
-                confidence=round(c_score, 4), # using CE score as confidence
+                confidence=round(c_score, 4), # term-overlap reranking score
                 text=chunk.text,
                 vector_score=round(chunk.vector_score, 4) if chunk.vector_score is not None else None,
             ))

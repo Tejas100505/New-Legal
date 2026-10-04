@@ -136,9 +136,9 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-20250514"
     google_api_key: str = ""
     google_api_key_2: str = ""
-    # Primary model: gemini-3.5-flash-lite (15 RPM / 1,500 RPD free tier quota).
-    # Fallback model: gemini-3.8-flash (20 RPD free tier cap).
-    google_model: str = "gemini-3.5-flash-lite"
+    # Primary model: gemini-3.1-flash-lite (active, fast, reliable quota).
+    # Fallback model: gemini-3.8-flash (active backup).
+    google_model: str = "gemini-3.1-flash-lite"
     google_model_fallback: str = "gemini-3.8-flash"
 
     # ── Embeddings ───────────────────────────────────────────────────────────

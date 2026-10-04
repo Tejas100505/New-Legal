@@ -27,7 +27,15 @@ rate_engine = create_async_engine(TEST_DB_URL, echo=False)
 RateSessionLocal = async_sessionmaker(bind=rate_engine, class_=AsyncSession, expire_on_commit=False)
 
 import app.db.session as db_session_module
-db_session_module.AsyncSessionLocal = RateSessionLocal
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_session_local():
+    orig_session_local = db_session_module.AsyncSessionLocal
+    db_session_module.AsyncSessionLocal = RateSessionLocal
+    try:
+        yield
+    finally:
+        db_session_module.AsyncSessionLocal = orig_session_local
 
 from app.main import app
 from app.db.base import Base
@@ -62,7 +70,6 @@ TEST_USER_EMAIL = "ratelimit_user@lawfirm.com"
 
 async def init_test_db():
     limiter.reset()
-    db_session_module.AsyncSessionLocal = RateSessionLocal
     async with rate_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

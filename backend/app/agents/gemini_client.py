@@ -148,8 +148,14 @@ class LLMClient:
             raise AgentException("Prompt cannot be empty.")
 
         settings = get_settings()
-        model_name = model or settings.google_model or "gemini-3.5-flash-lite"
+        primary_model = model or settings.google_model or "gemini-3.1-flash-lite"
         fallback_model = settings.google_model_fallback or "gemini-3.8-flash"
+
+        # Cascade of reliable models: primary -> fallback -> gemini-3.1-flash-lite -> gemini-3.8-flash -> gemini-3.6-flash
+        candidate_models: list[str] = []
+        for m in [primary_model, fallback_model, "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"]:
+            if m and m not in candidate_models:
+                candidate_models.append(m)
 
         config: Dict[str, Any] = {}
         if json_mode:
@@ -160,51 +166,53 @@ class LLMClient:
 
         client = get_gemini_client()
         response = None
+        last_err: Optional[Exception] = None
 
         for attempt in range(3):
-            try:
-                response = await client.aio.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config=gen_config,
-                )
-                break
-            except Exception as api_err:
-                if is_quota_error(api_err):
-                    if mark_primary_exhausted():
-                        logger.warning(
-                            f"[LLMClient] 429 Quota Exhausted on primary key. Switched to GOOGLE_API_KEY_2. Retrying..."
-                        )
-                        client = get_gemini_client()
-                        continue
-                    elif attempt < 2:
-                        logger.warning(f"[LLMClient] Rate limited (attempt {attempt + 1}/3). Waiting 15s...")
-                        await asyncio.sleep(15.0)
-                        continue
-                if not is_quota_error(api_err):
-                    if fallback_model and fallback_model != model_name:
-                        logger.warning(
-                            f"[LLMClient] Primary model {model_name} failed ({api_err}). Retrying with fallback {fallback_model}..."
-                        )
-                        try:
-                            response = await client.aio.models.generate_content(
-                                model=fallback_model,
-                                contents=prompt,
-                                config=gen_config,
+            for current_model in candidate_models:
+                try:
+                    response = await client.aio.models.generate_content(
+                        model=current_model,
+                        contents=prompt,
+                        config=gen_config,
+                    )
+                    break
+                except Exception as api_err:
+                    last_err = api_err
+                    if is_quota_error(api_err):
+                        if mark_primary_exhausted():
+                            logger.warning(
+                                f"[LLMClient] 429 Quota Exhausted on primary key. Switched to GOOGLE_API_KEY_2. Retrying model {current_model}..."
                             )
-                            break
-                        except Exception as fb_err:
-                            logger.error(f"[LLMClient] Fallback model {fallback_model} failed: {fb_err}")
-                            if is_quota_error(fb_err):
-                                raise QuotaExhaustedException(
-                                    f"[LLMClient] Quota exhausted on fallback model {fallback_model}: {fb_err}"
-                                ) from fb_err
-                            raise fb_err
-                if is_quota_error(api_err):
-                    raise QuotaExhaustedException(
-                        f"[LLMClient] LLM quota exhausted on all keys/models: {api_err}"
-                    ) from api_err
-                raise api_err
+                            client = get_gemini_client()
+                            try:
+                                response = await client.aio.models.generate_content(
+                                    model=current_model,
+                                    contents=prompt,
+                                    config=gen_config,
+                                )
+                                break
+                            except Exception as key2_err:
+                                last_err = key2_err
+                                logger.warning(f"[LLMClient] Model {current_model} failed on key 2: {key2_err}")
+                        continue
+                    else:
+                        logger.warning(
+                            f"[LLMClient] Model {current_model} failed ({api_err}). Trying next model in cascade..."
+                        )
+                        continue
+
+            if response is not None:
+                break
+
+            if attempt < 2:
+                logger.warning(f"[LLMClient] All candidate models failed on pass {attempt + 1}/3. Waiting 3s before retry...")
+                await asyncio.sleep(3.0)
+
+        if response is None:
+            if last_err and is_quota_error(last_err):
+                raise QuotaExhaustedException(f"[LLMClient] LLM quota exhausted across all models/keys: {last_err}") from last_err
+            raise AgentException(f"All Gemini models in cascade failed: {last_err}")
 
         if response is None:
             raise AgentException("Gemini execution produced no response.")

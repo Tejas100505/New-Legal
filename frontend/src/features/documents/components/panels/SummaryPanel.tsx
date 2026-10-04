@@ -19,7 +19,18 @@ export function SummaryPanel({ doc }: SummaryPanelProps) {
   const summaries: any[] = doc?.doc_metadata?.summaries || [];
   const semanticScores = getScoresArray(doc?.doc_metadata?.semantic_similarity_scores);
   const lexicalScores = getScoresArray(doc?.doc_metadata?.lexical_similarity_scores);
-  const entities = doc?.extractedEntities || doc?.doc_metadata?.entities || [];
+  const rawEntities = doc?.extractedEntities || doc?.doc_metadata?.entities;
+  const entities: any[] = rawEntities && typeof rawEntities === 'object' && !Array.isArray(rawEntities)
+    ? Object.entries(rawEntities).flatMap(([type, texts]) =>
+        (Array.isArray(texts) ? texts : []).map((text: string, i: number) => ({
+          id: `${type}-${i}`,
+          type,
+          text: text,
+          name: text,
+          confidence: 1.0,
+        }))
+      )
+    : Array.isArray(rawEntities) ? rawEntities : [];
 
   // Stale Document Handling: Document processed prior to current multi-type summarization model
   if (!summaries || summaries.length === 0) {

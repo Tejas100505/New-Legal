@@ -41,10 +41,10 @@ export function DocumentViewerPage() {
           Document with reference ID could not be loaded. Please return to the document library.
         </div>
         <button
-          onClick={() => navigate('/documents')}
+          onClick={() => navigate('/cases')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Library
+          <ArrowLeft className="h-4 w-4" /> Back to Cases
         </button>
       </PageShell>
     );
@@ -57,10 +57,10 @@ export function DocumentViewerPage() {
       fullWidth
       actions={
         <button
-          onClick={() => navigate('/documents')}
+          onClick={() => navigate(doc.case_id ? `/cases/${doc.case_id}/evidence` : '/cases')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold border border-slate-700/50 transition-colors cursor-pointer"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Library
+          <ArrowLeft className="h-4 w-4" /> {doc.case_id ? 'Back to Case' : 'Back to Cases'}
         </button>
       }
     >
@@ -71,6 +71,7 @@ export function DocumentViewerPage() {
           pageCount={doc.page_count || doc.pageCount || 1}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
+          documentId={doc.id}
         />
 
         {/* Modular Side-by-Side Panels Viewer */}

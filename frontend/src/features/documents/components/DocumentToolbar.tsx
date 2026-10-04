@@ -11,9 +11,10 @@ interface DocumentToolbarProps {
   pageCount: number;
   currentPage: number;
   onPageChange: (page: number) => void;
+  documentId?: string;
 }
 
-export function DocumentToolbar({ fileName, pageCount, currentPage, onPageChange }: DocumentToolbarProps) {
+export function DocumentToolbar({ fileName, pageCount, currentPage, onPageChange, documentId }: DocumentToolbarProps) {
   const showOcr = useDocumentViewerStore((s) => s.showOcrOverlay);
   const toggleOcr = useDocumentViewerStore((s) => s.toggleOcrOverlay);
   const showEntities = useDocumentViewerStore((s) => s.showEntityHighlights);
@@ -28,7 +29,7 @@ export function DocumentToolbar({ fileName, pageCount, currentPage, onPageChange
 
   const handleRequestReview = () => {
     createReviewRequest({
-      documentId: 'doc_001', // Mock ID for now
+      documentId: documentId || '',
       requesterId: 'You',
       reviewerId: 'Senior Counsel',
     });

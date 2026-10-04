@@ -111,14 +111,5 @@ export const useCollaborationStore = create<CollaborationState>((set) => ({
   })
 }));
 
-// Mock WebSocket incoming events to simulate presence
-setInterval(() => {
-  const store = useCollaborationStore.getState();
-  // Randomly toggle someone typing every 10 seconds just for visual feedback
-  if (Math.random() > 0.7) {
-    store._handleWSEvent({ type: 'TYPING_INDICATOR', documentId: 'doc_001', isTyping: true });
-    setTimeout(() => {
-      useCollaborationStore.getState()._handleWSEvent({ type: 'TYPING_INDICATOR', documentId: 'doc_001', isTyping: false });
-    }, 3000);
-  }
-}, 10000);
+// NOTE: Real-time collaboration presence is handled via WebSocket events
+// from the backend. No client-side simulation needed.

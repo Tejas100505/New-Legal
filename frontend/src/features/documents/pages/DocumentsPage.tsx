@@ -77,11 +77,11 @@ export function DocumentsPage({ caseId }: DocumentsPageProps = {}) {
       status: d.status === 'ocr_processing' ? 'processing' : d.status,
       caseId: d.case_id || 'case_unknown',
       caseName: 'General Matter',
-      ocrAccuracy: metadata.confidence_score || 0.95,
-      ocrConfidence: (metadata.confidence_score || 0.95) > 0.85 ? 'high' : 'medium',
+      ocrAccuracy: metadata.confidence_score ?? null,
+      ocrConfidence: metadata.confidence_score != null ? (metadata.confidence_score > 0.85 ? 'high' : 'medium') : 'medium',
       pageCount: d.page_count || 1,
       entityCount: metadata.entities ? Object.values(metadata.entities).flat().length : 0,
-      uploadedBy: 'Sarah Chen',
+      uploadedBy: d.uploaded_by ? String(d.uploaded_by).slice(0, 8) : 'Owner',
       uploadedAt: d.created_at || new Date().toISOString(),
       processedAt: d.updated_at || null,
       tags: metadata.tags || (metadata.document_type ? [metadata.document_type] : []),
@@ -93,7 +93,7 @@ export function DocumentsPage({ caseId }: DocumentsPageProps = {}) {
           id: `${type}-${i}`,
           type,
           text,
-          confidence: 0.9 + (Math.random() * 0.1) // Simple fallback confidence if not available
+          confidence: 1.0
         }))
       ) : [],
       doc_metadata: metadata,

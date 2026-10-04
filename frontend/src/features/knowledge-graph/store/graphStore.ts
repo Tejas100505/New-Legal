@@ -8,7 +8,7 @@ interface GraphState {
   edges: Edge[];
   rawNodes: any[];
   rawEdges: any[];
-  source: 'live' | 'mock_fallback';
+  source: 'live' | 'empty';
   selectedNodeId: string | null;
   filters: GraphFilters;
   layoutMode: GraphLayoutMode;
@@ -51,7 +51,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   edges: [],
   rawNodes: [],
   rawEdges: [],
-  source: 'mock_fallback',
+  source: 'empty',
   selectedNodeId: null,
   filters: {
     nodeTypes: ['document', 'person', 'organization', 'evidence', 'email', 'contract', 'legal_issue', 'event', 'location', 'case'],
@@ -117,11 +117,11 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         source: response.data.source || 'live'
       });
     } catch (err) {
-      console.error('Failed to fetch graph data from backend, falling back to mock data:', err);
+      console.error('Failed to fetch graph data from backend:', err);
       set({
         rawNodes: [],
         rawEdges: [],
-        source: 'mock_fallback'
+        source: 'empty'
       });
     }
   },

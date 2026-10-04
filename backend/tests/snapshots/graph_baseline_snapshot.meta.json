@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-09-28T11:24:31.180271+00:00",
+  "git_commit_hash": "266f2a01d15cda37bef56de513f3db26e91b5ab8",
+  "scope": {
+    "case_id": "8d8389d4-2534-452d-85b4-65efe5b8e1c3",
+    "description": "Primary case Enron dataset"
+  },
+  "primary_case_document_count": 423,
+  "document_node_count": 423,
+  "entity_node_count": 4253,
+  "total_node_count": 4676,
+  "total_edge_count": 9827,
+  "size_bytes": 6262085,
+  "sha256": "f091d2929bee9d9ab818d263cb2513846219d47f5cffe986516fada13ee9c3b4",
+  "statement": "Regression baseline generated from current output; NOT independent ground truth; the original 4,845-node snapshot was unrecoverable and contained leaked test fixtures."
+}

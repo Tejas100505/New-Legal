@@ -36,17 +36,18 @@ export function ReportsPage({ caseId }: ReportsPageProps = {}) {
       const response = await api.post(exportUrl);
       const payloadStr = JSON.stringify(response.data || {});
       const byteSize = new Blob([payloadStr]).size;
-      const totalDocs = response.data?.summary?.total_documents || response.data?.documents?.length || 424;
-      const newReport: Report = {
+      const totalDocs = response.data?.summary?.total_documents ?? response.data?.key_metrics?.documents_analyzed ?? 0;
+      const newReport: Report & { rawData?: any } = {
         id: `rpt_${Date.now()}`,
         name: `${type.replace('_', ' ').toUpperCase()} Report`,
         type: type as any,
         status: 'completed',
         caseId: response.data?.case_id || caseId || 'unassigned',
-        caseName: response.data?.case_name || response.data?.case?.name || 'Active Investigation',
+        caseName: response.data?.case_name || (caseId ? `Case ${String(caseId).slice(0, 8)}` : 'Platform-wide Review'),
         generatedAt: new Date().toISOString(),
         size: byteSize,
         pageCount: Math.max(1, Math.ceil(totalDocs / 20)),
+        rawData: response.data,
       };
       setReports([newReport, ...reports]);
     } catch (err) {
@@ -132,22 +133,42 @@ export function ReportsPage({ caseId }: ReportsPageProps = {}) {
                 <div className="flex items-center justify-end">
                   {report.status === 'completed' && (
                     <button
-                      onClick={() => {
-                        import('jspdf').then(({ jsPDF }) => {
-                          const doc = new jsPDF();
-                          doc.setFontSize(16);
-                          doc.text(`E-Discovery Executive Report`, 14, 20);
-                          doc.setFontSize(12);
-                          doc.text(`Report Name: ${report.name}`, 14, 30);
-                          doc.text(`Case Reference: ${report.caseName}`, 14, 38);
-                          doc.text(`Generated: ${new Date(report.generatedAt).toLocaleString()}`, 14, 46);
-                          doc.setFontSize(10);
-                          doc.text('Summary of Findings & Compliance Status:', 14, 58);
-                          doc.text('- Privilege Scanning: Attorney-client markers verified.', 14, 66);
-                          doc.text('- Risk Scoring: Compliance & legal risk analyzed across ingested chunks.', 14, 74);
-                          doc.text('- Document Processing: Complete 21-stage pipeline pipeline verified.', 14, 82);
-                          doc.save(`${report.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
-                        });
+                      onClick={async () => {
+                        const cId = report.caseId && report.caseId !== 'unassigned' ? report.caseId : caseId;
+                        const exportUrl = cId
+                          ? `/reports/export?format=markdown&case_id=${encodeURIComponent(cId)}`
+                          : '/reports/export?format=markdown';
+                        try {
+                          const res = await api.post(exportUrl);
+                          const content = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
+                          const blob = new Blob([content], { type: 'text/markdown' });
+                          const downloadUrl = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = downloadUrl;
+                          link.download = `${report.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(downloadUrl);
+                        } catch {
+                          import('jspdf').then(({ jsPDF }) => {
+                            const doc = new jsPDF();
+                            doc.setFontSize(16);
+                            doc.text(`E-Discovery Executive Report`, 14, 20);
+                            doc.setFontSize(12);
+                            doc.text(`Report Name: ${report.name}`, 14, 30);
+                            doc.text(`Case Reference: ${report.caseName}`, 14, 38);
+                            doc.text(`Generated: ${new Date(report.generatedAt).toLocaleString()}`, 14, 46);
+                            doc.setFontSize(10);
+                            const metrics = (report as any).rawData?.key_metrics;
+                            if (metrics) {
+                              doc.text(`Documents Analyzed: ${metrics.documents_analyzed ?? 0}`, 14, 58);
+                              doc.text(`Privileged Documents: ${metrics.privileged_documents ?? 0}`, 14, 66);
+                              doc.text(`High Risk Flags: ${metrics.high_risk_flags ?? 0}`, 14, 74);
+                            }
+                            doc.save(`${report.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+                          });
+                        }
                       }}
                       className="p-1 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-slate-800/60 transition-colors cursor-pointer"
                       aria-label="Download report"

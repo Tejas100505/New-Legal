@@ -50,8 +50,8 @@ export function Breadcrumbs({ className }: { className?: string }) {
         <Home className="h-3.5 w-3.5" />
       </Link>
 
-      {crumbs.map((crumb) => (
-        <div key={crumb.path} className="flex items-center gap-1.5">
+      {crumbs.map((crumb, index) => (
+        <div key={`${crumb.path}-${index}`} className="flex items-center gap-1.5">
           <ChevronRight className="h-3.5 w-3.5 text-slate-700" />
           {crumb.isLast ? (
             <span className="text-slate-300 font-medium" aria-current="page">

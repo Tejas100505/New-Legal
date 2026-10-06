@@ -234,3 +234,126 @@ async def test_case_scoping_helper_and_report_export():
     res_admin = client.post(f"/api/v1/reports/export?case_id={case_id}&format=json", headers=headers_admin)
     assert res_admin.status_code == 200
     assert res_admin.json()["key_metrics"]["documents_analyzed"] == 2
+
+
+@pytest.mark.asyncio
+async def test_all_report_types_and_formats_and_history():
+    """Verify all 4 report types and 5 formats and report history endpoint."""
+    user_id = str(uuid.uuid4())
+    test_email = f"report_tester_{uuid.uuid4().hex[:8]}@firm.com"
+    async with ReportsSessionLocal() as session:
+        session.add(User(
+            id=uuid.UUID(user_id),
+            email=test_email,
+            hashed_password="pw",
+            full_name="Report Tester",
+            role=UserRole.LAWYER,
+            is_active=True,
+            token_version=0,
+        ))
+        await session.commit()
+
+    token = create_access_token(user_id=user_id, email=test_email, role=UserRole.LAWYER, token_version=0)
+    headers = {"Authorization": f"Bearer {token}"}
+    case_id = uuid.uuid4()
+
+    async with ReportsSessionLocal() as session:
+        case = Case(
+            id=case_id,
+            name="Quantum Semiconductors Patent Dispute",
+            case_number="QS-2026-99",
+            matter_number="MAT-4001",
+            client="Quantum Nano Corp",
+            case_type="Patent Infringement",
+            status=CaseStatus.IN_PROGRESS,
+            priority=CasePriority.HIGH,
+            created_by=user_id,
+        )
+        doc1 = Document(
+            id=uuid.uuid4(),
+            case_id=case_id,
+            uploaded_by=uuid.UUID(user_id),
+            filename="patent_claim_memo.docx",
+            original_filename="patent_claim_memo.docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            file_size=5000,
+            storage_path="/tmp/patent_claim_memo.docx",
+            status=DocumentStatus.REVIEWED,
+            extracted_text="Privileged & Confidential attorney work product memo.",
+            doc_metadata={
+                "custodian": "General Counsel",
+                "privilege_type": "Attorney Work Product",
+                "privilege_analysis": {
+                    "is_privileged": True,
+                    "reasoning": "Contains attorney work product analysis for patent defense",
+                },
+                "risk_analysis": {
+                    "assessments": [
+                        {"category": "Patent Claim Infringement", "risk_level": "CRITICAL", "reason": "Literal infringement exposure on Claim 4"}
+                    ]
+                },
+                "timeline": [
+                    {"date": "2026-02-10", "description": "Prior art disclosure sent to counsel"}
+                ],
+                "entities": {
+                    "people": ["Dr. Elena Vance"],
+                    "organizations": ["Quantum Nano Corp", "Black Mesa Tech"],
+                }
+            },
+        )
+        session.add(case)
+        session.add(doc1)
+        await session.commit()
+
+    report_types = ["review_summary", "privilege_log", "risk_assessment", "executive_summary"]
+    formats = ["json", "markdown", "csv", "pdf", "docx"]
+
+    # 1. Test each report type in JSON
+    for rtype in report_types:
+        res = client.post(f"/api/v1/reports/export?case_id={case_id}&report_type={rtype}&format=json", headers=headers)
+        assert res.status_code == 200
+        d = res.json()
+        assert d["case_id"] == str(case_id)
+        assert d["report_type"] == rtype
+        assert "corpus_stats" in d
+        assert d["corpus_stats"]["total_documents"] == 1
+        assert d["corpus_stats"]["privileged_documents"] == 1
+
+        if rtype == "privilege_log":
+            assert len(d["privilege_log"]) == 1
+            assert d["privilege_log"][0]["document"] == "patent_claim_memo.docx"
+            assert d["privilege_log"][0]["author_custodian"] == "General Counsel"
+            assert "Work Product" in d["privilege_log"][0]["privilege_type"]
+
+        if rtype == "risk_assessment":
+            assert len(d["risks"]) >= 1
+            assert d["risks"][0]["category"] == "Patent Claim Infringement"
+            assert d["risks"][0]["severity"] == "CRITICAL"
+
+    # 2. Test each format for privilege_log
+    for fmt in formats:
+        res_fmt = client.post(f"/api/v1/reports/export?case_id={case_id}&report_type=privilege_log&format={fmt}", headers=headers)
+        assert res_fmt.status_code == 200, f"Failed for {fmt}: {res_fmt.text}"
+        if fmt == "pdf":
+            assert res_fmt.headers["content-type"] == "application/pdf"
+            assert len(res_fmt.content) > 1000
+        elif fmt == "docx":
+            assert "wordprocessingml" in res_fmt.headers["content-type"]
+            assert len(res_fmt.content) > 1000
+        elif fmt == "markdown":
+            assert "Formal Privilege Log" in res_fmt.text
+            assert "patent_claim_memo.docx" in res_fmt.text
+        elif fmt == "csv":
+            assert "Document Name" in res_fmt.text
+            assert "patent_claim_memo.docx" in res_fmt.text
+
+    # 3. Test report history endpoint
+    res_hist = client.get(f"/api/v1/reports/history?case_id={case_id}", headers=headers)
+    assert res_hist.status_code == 200
+    hist_data = res_hist.json()
+    assert hist_data["status"] == "success"
+    assert hist_data["total"] >= 1
+    recent = hist_data["reports"][0]
+    assert recent["caseId"] == str(case_id)
+    assert "metrics" in recent
+

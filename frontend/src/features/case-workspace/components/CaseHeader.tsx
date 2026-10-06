@@ -119,7 +119,7 @@ export function CaseHeader({ caseData, caseId, totalDocs }: CaseHeaderProps) {
               <Link
                 key={link.path}
                 to={`/cases/${caseId}/${link.path}`}
-                className="flex items-center justify-between gap-1.5 px-3 py-2 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all group shadow-sm"
+                className="flex items-center justify-between gap-1.5 px-3 py-2 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-slate-100 text-xs font-medium transition-all group shadow-sm"
                 title={`Open ${link.label}`}
                 id={`launchpad-link-${link.path}`}
               >

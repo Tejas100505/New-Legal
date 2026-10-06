@@ -54,8 +54,8 @@ export function Header() {
     <header
       className={cn(
         'sticky top-0 z-30 flex items-center justify-between h-16 px-6',
-        'border-b border-slate-800/50 dark:border-slate-800/50',
-        'bg-slate-950/60 dark:bg-slate-950/60 backdrop-blur-xl'
+        'border-b border-slate-800/50',
+        'bg-slate-950/60 backdrop-blur-xl'
       )}
     >
       {/* ── Left: Mobile hamburger + Breadcrumbs / Title ────────── */}
@@ -74,10 +74,10 @@ export function Header() {
             <Breadcrumbs />
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-slate-100 dark:text-slate-100">
+              <h2 className="text-lg font-semibold text-slate-100">
                 {meta?.title || 'Dashboard'}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-500">
+              <p className="text-xs text-slate-500">
                 {meta?.description || 'Agentic AI Legal Intelligence Platform'}
               </p>
             </>
@@ -101,8 +101,10 @@ export function Header() {
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+          type="button"
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
           aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+          title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
           id="theme-toggle"
         >
           {resolvedTheme === 'dark' ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
@@ -159,7 +161,7 @@ export function Header() {
                 className={cn(
                   'absolute right-0 top-12 w-64',
                   'rounded-xl border border-slate-800/80',
-                  'bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-2xl',
+                  'bg-slate-900/95 backdrop-blur-2xl',
                   'shadow-2xl shadow-black/30 z-50'
                 )}
               >

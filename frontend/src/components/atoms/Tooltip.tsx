@@ -40,8 +40,8 @@ export function Tooltip({ children, content, side = 'top', className }: TooltipP
             className={cn(
               'absolute z-50 pointer-events-none',
               'px-2.5 py-1.5 rounded-lg',
-              'bg-slate-800 dark:bg-slate-800 border border-slate-700 dark:border-slate-700',
-              'text-xs font-medium text-slate-200 dark:text-slate-200 whitespace-nowrap',
+              'bg-slate-800 border border-slate-700',
+              'text-xs font-medium text-slate-200 whitespace-nowrap',
               'shadow-xl shadow-black/20',
               positionStyles[side]
             )}

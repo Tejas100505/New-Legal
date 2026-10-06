@@ -67,9 +67,21 @@ async def _build_knowledge_graph(
     db: AsyncSession,
     current_user: TokenPayload,
     case_id: Optional[uuid.UUID] = None,
+    document_id: Optional[uuid.UUID] = None,
     limit: Optional[int] = None,
 ) -> Dict[str, Any]:
-    if case_id and current_user.role != UserRole.ADMIN:
+    if document_id:
+        doc_obj = await db.get(Document, document_id)
+        if not doc_obj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        if current_user.role != UserRole.ADMIN:
+            if doc_obj.case_id:
+                case = await db.get(Case, doc_obj.case_id)
+                if not case or case.created_by != current_user.sub:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this document graph")
+            elif str(doc_obj.uploaded_by) != current_user.sub:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this document graph")
+    elif case_id and current_user.role != UserRole.ADMIN:
         case = await db.get(Case, case_id)
         if not case or case.created_by != current_user.sub:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this case graph")
@@ -80,7 +92,9 @@ async def _build_knowledge_graph(
         .where(Document.doc_metadata.isnot(None))
         .order_by(Document.created_at.desc())
     )
-    if case_id:
+    if document_id:
+        stmt = stmt.where(Document.id == document_id)
+    elif case_id:
         stmt = stmt.where(Document.case_id == case_id)
     elif current_user.role != UserRole.ADMIN:
         try:
@@ -385,6 +399,7 @@ async def compute_graph_fingerprint(
     db: AsyncSession,
     current_user: TokenPayload,
     case_id: Optional[uuid.UUID] = None,
+    document_id: Optional[uuid.UUID] = None,
     limit: Optional[int] = None,
 ) -> str:
     """
@@ -401,7 +416,9 @@ async def compute_graph_fingerprint(
         .outerjoin(Case, Document.case_id == Case.id)
         .where(Document.doc_metadata.isnot(None))
     )
-    if case_id:
+    if document_id:
+        fp_stmt = fp_stmt.where(Document.id == document_id)
+    elif case_id:
         fp_stmt = fp_stmt.where(Document.case_id == case_id)
     elif current_user.role != UserRole.ADMIN:
         try:
@@ -416,49 +433,64 @@ async def compute_graph_fingerprint(
     fp_res = await db.execute(fp_stmt)
     count_val, max_dt = fp_res.first()
     dt_str = max_dt.isoformat() if max_dt else "none"
-    return f"{count_val}_{dt_str}_{limit or 'all'}"
+    doc_prefix = f"doc_{document_id}_" if document_id else ""
+    return f"{doc_prefix}{count_val}_{dt_str}_{limit or 'all'}"
 
 
 async def get_knowledge_graph_cached(
     db: AsyncSession,
     current_user: TokenPayload,
     case_id: Optional[uuid.UUID] = None,
+    document_id: Optional[uuid.UUID] = None,
     limit: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Retrieves knowledge graph from in-memory cache if state fingerprint matches,
     otherwise runs full _build_knowledge_graph and populates cache.
     """
-    # Verify case access upfront
-    if case_id and current_user.role != UserRole.ADMIN:
+    # Verify access upfront
+    if document_id:
+        doc_obj = await db.get(Document, document_id)
+        if not doc_obj:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        if current_user.role != UserRole.ADMIN:
+            if doc_obj.case_id:
+                case = await db.get(Case, doc_obj.case_id)
+                if not case or case.created_by != current_user.sub:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this document graph")
+            elif str(doc_obj.uploaded_by) != current_user.sub:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this document graph")
+    elif case_id and current_user.role != UserRole.ADMIN:
         case = await db.get(Case, case_id)
         if not case or case.created_by != current_user.sub:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this case graph")
 
     t_fp_start = time.perf_counter()
-    fingerprint = await compute_graph_fingerprint(db, current_user, case_id, limit)
+    fingerprint = await compute_graph_fingerprint(db, current_user, case_id, document_id, limit)
     t_fp = time.perf_counter() - t_fp_start
 
     scope_case = str(case_id) if case_id else "global"
+    scope_doc = str(document_id) if document_id else "all"
     scope_user = current_user.sub if current_user.role != UserRole.ADMIN else "admin"
-    cache_key = (scope_case, scope_user, fingerprint)
+    cache_key = (f"{scope_case}:{scope_doc}", scope_user, fingerprint)
 
     cached = graph_cache.get(cache_key)
     if cached is not None:
         logger.info(
-            f"[KnowledgeGraph Cache HIT] key=({scope_case}, {scope_user}, {fingerprint}), "
+            f"[KnowledgeGraph Cache HIT] key=({scope_case}:{scope_doc}, {scope_user}, {fingerprint}), "
             f"lookup_time={t_fp*1000:.2f}ms, nodes={len(cached['nodes'])}, edges={len(cached['edges'])}"
         )
         return cached
 
     logger.info(
-        f"[KnowledgeGraph Cache MISS] key=({scope_case}, {scope_user}, {fingerprint}), "
+        f"[KnowledgeGraph Cache MISS] key=({scope_case}:{scope_doc}, {scope_user}, {fingerprint}), "
         f"triggering full graph build"
     )
     built_graph = await _build_knowledge_graph(
         db=db,
         current_user=current_user,
         case_id=case_id,
+        document_id=document_id,
         limit=limit,
     )
     graph_cache.set(cache_key, built_graph)
@@ -477,6 +509,7 @@ async def get_graph(
     search: Optional[str] = Query(None),
     limit: Optional[int] = Query(None, description="Optional limit of documents to process; defaults to all documents"),
     case_id: Optional[uuid.UUID] = Query(None, alias="caseId"),
+    document_id: Optional[uuid.UUID] = Query(None, alias="documentId"),
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
@@ -484,6 +517,7 @@ async def get_graph(
         db=db,
         current_user=current_user,
         case_id=case_id,
+        document_id=document_id,
         limit=limit,
     )
     nodes = graph_data["nodes"]

@@ -1,17 +1,30 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useGraphStore } from '../store/graphStore';
-import { Search, GitCommit, Download, Sparkles, RotateCcw } from 'lucide-react';
+import { Search, GitCommit, Download, Sparkles, RotateCcw, Maximize2, Minimize2, SlidersHorizontal, Sun, Moon } from 'lucide-react';
+import { useThemeStore } from '@/stores/themeStore';
 import { GRAPH_LAYOUTS, GRAPH_NODE_COLORS } from '@/lib/constants';
 import type { GraphLayoutMode } from '@/types';
+import { cn } from '@/lib/utils';
 import { toPng, toSvg } from 'html-to-image';
 import jsPDF from 'jspdf';
 
 interface GraphToolbarProps {
   onOpenPathFinder: () => void;
   onApplyLayout: () => void;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
+  showFilters?: boolean;
+  onToggleFilters?: () => void;
 }
 
-export function GraphToolbar({ onOpenPathFinder, onApplyLayout }: GraphToolbarProps) {
+export function GraphToolbar({ 
+  onOpenPathFinder, 
+  onApplyLayout,
+  isMaximized = false,
+  onToggleMaximize,
+  showFilters = false,
+  onToggleFilters,
+}: GraphToolbarProps) {
   const filters = useGraphStore((s) => s.filters);
   const setFilters = useGraphStore((s) => s.setFilters);
   const layoutMode = useGraphStore((s) => s.layoutMode);
@@ -22,6 +35,8 @@ export function GraphToolbar({ onOpenPathFinder, onApplyLayout }: GraphToolbarPr
   const rawNodes = useGraphStore((s) => s.rawNodes);
   const selectNode = useGraphStore((s) => s.selectNode);
   const resetFilters = useGraphStore((s) => s.resetFilters);
+
+  const { resolvedTheme, toggleTheme } = useThemeStore();
 
   const [exportDropdown, setExportDropdown] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -229,6 +244,69 @@ export function GraphToolbar({ onOpenPathFinder, onApplyLayout }: GraphToolbarPr
             </div>
           )}
         </div>
+
+        {/* Toggle Filters Panel (visible when maximized) */}
+        {isMaximized && onToggleFilters && (
+          <button
+            type="button"
+            id="graph-filters-toggle"
+            onClick={onToggleFilters}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50",
+              showFilters
+                ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
+                : "bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700/50"
+            )}
+            title={showFilters ? "Hide graph filters" : "Show graph filters"}
+            aria-label={showFilters ? "Hide graph filters" : "Show graph filters"}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-400" />
+            <span>Filters</span>
+          </button>
+        )}
+
+        {/* Theme toggle (visible in maximized mode where global header is hidden) */}
+        {isMaximized && (
+          <button
+            type="button"
+            id="graph-theme-toggle"
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer border border-slate-700/50"
+            title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+            aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        )}
+
+        {/* Maximize / Fullscreen Toggle Button */}
+        {onToggleMaximize && (
+          <button
+            type="button"
+            id="graph-maximize-toggle"
+            onClick={onToggleMaximize}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50",
+              isMaximized
+                ? "bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500 shadow-md shadow-indigo-600/30"
+                : "bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700/50"
+            )}
+            title={isMaximized ? "Exit fullscreen" : "Maximize graph"}
+            aria-label={isMaximized ? "Exit graph fullscreen" : "Maximize graph"}
+          >
+            {isMaximized ? (
+              <>
+                <Minimize2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Minimize</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="h-3.5 w-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">Maximize</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

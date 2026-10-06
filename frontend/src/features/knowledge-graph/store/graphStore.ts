@@ -1,7 +1,28 @@
 import { create } from 'zustand';
-import type { GraphFilters, GraphLayoutMode, ShortestPathResult } from '@/types';
+import type { GraphFilters, GraphLayoutMode, ShortestPathResult, GraphNodeType } from '@/types';
 import type { Node, Edge } from '@xyflow/react';
 import api from '@/lib/api';
+
+export const PRIMARY_NODE_TYPES: GraphNodeType[] = [
+  'document',
+  'person',
+  'organization',
+  'legal_issue',
+];
+
+export const SECONDARY_NODE_TYPES: GraphNodeType[] = [
+  'evidence',
+  'email',
+  'contract',
+  'event',
+  'location',
+  'case',
+];
+
+export const ALL_NODE_TYPES: GraphNodeType[] = [
+  ...PRIMARY_NODE_TYPES,
+  ...SECONDARY_NODE_TYPES,
+];
 
 interface GraphState {
   nodes: Node[];
@@ -55,7 +76,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   source: 'empty',
   selectedNodeId: null,
   filters: {
-    nodeTypes: ['document', 'person', 'organization', 'evidence', 'email', 'contract', 'legal_issue', 'event', 'location', 'case'],
+    nodeTypes: [...PRIMARY_NODE_TYPES],
     edgeTypes: ['mentions', 'ownership', 'similarity', 'communication', 'citation', 'references', 'evidence_link', 'relationship'],
     minWeight: 0.1,
     caseId: null,
@@ -142,7 +163,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setFilters: (newFilters) => set((state) => ({ filters: { ...state.filters, ...newFilters } })),
   resetFilters: () => set({
     filters: {
-      nodeTypes: ['document', 'person', 'organization', 'evidence', 'email', 'contract', 'legal_issue', 'event', 'location', 'case'],
+      nodeTypes: [...PRIMARY_NODE_TYPES],
       edgeTypes: ['mentions', 'ownership', 'similarity', 'communication', 'citation', 'references', 'evidence_link', 'relationship'],
       minWeight: 0.1,
       caseId: null,

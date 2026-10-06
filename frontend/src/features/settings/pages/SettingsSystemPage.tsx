@@ -103,7 +103,7 @@ export function SettingsSystemPage() {
             <button
               onClick={() => refetch()}
               disabled={isRefetching}
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-slate-100 transition-all cursor-pointer"
               title="Refresh Health Status"
             >
               <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin text-indigo-400' : ''}`} />

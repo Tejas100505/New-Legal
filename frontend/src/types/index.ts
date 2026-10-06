@@ -45,6 +45,8 @@ export interface LegalCase {
   id: string;
   name: string;
   caseNumber: string;
+  matterNumber?: string;
+  caseType?: string;
   description: string;
   status: CaseStatus;
   priority: CasePriority;
@@ -53,6 +55,12 @@ export interface LegalCase {
   assignedTo: string;
   documentCount: number;
   evidenceCount: number;
+  reviewedCount?: number;
+  flaggedCount?: number;
+  privilegedCount?: number;
+  highRiskCount?: number;
+  processingCount?: number;
+  lastActivity?: string;
   createdAt: string;
   updatedAt: string;
   dueDate: string;
@@ -410,7 +418,7 @@ export interface DocumentRiskAssessment {
   }>;
 }
 
-export type ViewerTab = 'summary' | 'risk' | 'reasoning' | 'entities' | 'annotations' | 'search' | 'discussion';
+export type ViewerTab = 'summary' | 'risk' | 'entities' | 'relationships' | 'reasoning' | 'annotations' | 'search' | 'discussion';
 
 export interface VersionDiff {
   type: 'addition' | 'deletion' | 'modification';

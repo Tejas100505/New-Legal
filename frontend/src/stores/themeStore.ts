@@ -24,17 +24,41 @@ function resolveTheme(theme: ThemeMode): 'dark' | 'light' {
   return theme;
 }
 
+function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'dark';
+  try {
+    const stored = localStorage.getItem('casegraph-theme') || localStorage.getItem('theme-storage');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed?.state?.theme) return parsed.state.theme;
+        if (typeof parsed === 'string') return parsed as ThemeMode;
+      } catch {
+        if (stored === 'light' || stored === 'dark' || stored === 'system') return stored as ThemeMode;
+      }
+    }
+  } catch {}
+  return 'dark';
+}
+
 function applyTheme(resolved: 'dark' | 'light') {
+  if (typeof document === 'undefined') return;
   const root = document.documentElement;
   root.classList.remove('dark', 'light');
   root.classList.add(resolved);
+  root.setAttribute('data-theme', resolved);
+  root.style.colorScheme = resolved;
 }
+
+const initialTheme = getInitialTheme();
+const initialResolved = resolveTheme(initialTheme);
+applyTheme(initialResolved);
 
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set, get) => ({
-      theme: 'dark',
-      resolvedTheme: 'dark',
+      theme: initialTheme,
+      resolvedTheme: initialResolved,
 
       setTheme: (theme: ThemeMode) => {
         const resolved = resolveTheme(theme);
@@ -50,7 +74,7 @@ export const useThemeStore = create<ThemeStore>()(
       },
     }),
     {
-      name: 'theme-storage',
+      name: 'casegraph-theme',
       partialize: (state) => ({ theme: state.theme }),
       onRehydrateStorage: () => (state) => {
         if (state) {

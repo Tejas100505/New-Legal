@@ -34,7 +34,7 @@ export function PageShell({ title, description, actions, children, className, fu
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 dark:text-slate-100 tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">
             {title}
           </h1>
           {description && (

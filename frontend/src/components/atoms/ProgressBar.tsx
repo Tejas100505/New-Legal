@@ -49,7 +49,7 @@ export function ProgressBar({
       <div
         className={cn(
           'w-full rounded-full overflow-hidden',
-          'bg-slate-800/60 dark:bg-slate-800/60',
+          'bg-slate-800/60',
           sizeStyles[size]
         )}
         role="progressbar"

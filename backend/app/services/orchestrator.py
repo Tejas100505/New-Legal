@@ -170,7 +170,7 @@ async def _handle_quota_pause(
     await session.commit()
 
 
-async def run_document_pipeline(document_id: str):
+async def _run_document_pipeline_inner(document_id: str):
     """
     Executes the full 21-stage document processing pipeline:
     OCR -> Classification -> Chunking -> Embedding -> Vector DB ->
@@ -798,3 +798,88 @@ async def run_document_pipeline(document_id: str):
         await session.commit()
 
         logger.info(f"Full pipeline successfully completed for document {document_id}")
+
+async def check_and_trigger_case_intelligence(case_id: str):
+    from sqlalchemy import text, select, func
+    from app.db.session import AsyncSessionLocal
+    from app.models.document import Document, DocumentStatus
+    from app.models.case_summary import CaseSummary, CaseSummaryStatus
+    from app.services.case_intelligence_service import generate_case_summary, compute_case_data_hash
+    import uuid
+    import asyncio
+    
+    if isinstance(case_id, str):
+        try:
+            case_uuid = uuid.UUID(case_id)
+        except ValueError:
+            return
+    else:
+        case_uuid = case_id
+        
+    async with AsyncSessionLocal() as session:
+        # Transaction-level advisory lock
+        lock_id = hash(case_uuid.int) % (2**31 - 1)
+        await session.execute(text(f"SELECT pg_advisory_xact_lock({lock_id})"))
+        
+        # Count active documents
+        active_statuses = [
+            DocumentStatus.UPLOADED,
+            DocumentStatus.VALIDATING,
+            DocumentStatus.OCR_PROCESSING,
+            DocumentStatus.CHUNKING,
+            DocumentStatus.EMBEDDING,
+            DocumentStatus.ANALYZING,
+        ]
+        
+        stmt = select(func.count(Document.id)).where(
+            Document.case_id == case_uuid,
+            Document.status.in_(active_statuses)
+        )
+        active_count = (await session.execute(stmt)).scalar_one()
+        
+        if active_count == 0:
+            # Check if summary is generating or up-to-date
+            docs_stmt = select(Document).where(Document.case_id == case_uuid)
+            docs = (await session.execute(docs_stmt)).scalars().all()
+            if not docs:
+                return
+            
+            live_hash = compute_case_data_hash(list(docs))
+            
+            stmt_summary = select(CaseSummary).where(
+                CaseSummary.case_id == case_uuid
+            ).order_by(CaseSummary.created_at.desc()).limit(1)
+            latest = (await session.execute(stmt_summary)).scalars().first()
+            
+            if latest:
+                if latest.status == CaseSummaryStatus.GENERATING:
+                    return
+                if latest.status == CaseSummaryStatus.COMPLETE and latest.source_data_hash == live_hash:
+                    return
+            
+            logger.info(f"All documents finished for case {case_uuid}, triggering automatic case intelligence.")
+            try:
+                # generate_case_summary uses the provided session and commits
+                await generate_case_summary(session, case_uuid)
+            except Exception as e:
+                logger.error(f"Failed to generate automatic case intelligence: {e}")
+
+async def run_document_pipeline(document_id: str):
+    case_id_to_check = None
+    try:
+        from app.db.session import AsyncSessionLocal
+        from app.repositories.document_repository import DocumentRepository
+        async with AsyncSessionLocal() as session:
+            repo = DocumentRepository(session)
+            doc = await repo.get_by_id(document_id)
+            if doc and doc.case_id:
+                case_id_to_check = doc.case_id
+    except Exception:
+        pass
+
+    try:
+        await _run_document_pipeline_inner(document_id)
+    finally:
+        if case_id_to_check:
+            await check_and_trigger_case_intelligence(case_id_to_check)
+

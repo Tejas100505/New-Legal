@@ -12,6 +12,7 @@ import { Badge } from '@/components/atoms/Badge';
 import { Spinner } from '@/components/atoms/Spinner';
 import type { LegalCase, CaseStatus } from '@/types';
 import { CaseWorkspaceContext } from './CaseWorkspaceContext';
+import { CaseProcessingBanner } from './components/CaseProcessingBanner';
 
 const CASE_TABS = [
   { id: 'overview', label: 'Overview', path: 'overview', icon: LayoutDashboard },
@@ -241,7 +242,10 @@ export function CaseWorkspaceLayout() {
             </div>
           </div>
         ) : (
-          <Outlet />
+          <>
+            {caseId && <CaseProcessingBanner caseId={caseId} onRefreshCase={fetchCase} />}
+            <Outlet />
+          </>
         )}
       </div>
     </CaseWorkspaceContext.Provider>

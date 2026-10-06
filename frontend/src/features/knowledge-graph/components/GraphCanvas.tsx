@@ -5,22 +5,31 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useGraphStore } from '../store/graphStore';
+import { useThemeStore } from '@/stores/themeStore';
 import { CustomNode } from './nodes/CustomNode';
 import { GRAPH_NODE_COLORS } from '@/lib/constants';
 import { useGraphOperations } from '../hooks/useGraphOperations';
-import { BookOpen, X } from 'lucide-react';
+import { BookOpen, X, Maximize2, Minimize2 } from 'lucide-react';
 
 interface GraphCanvasProps {
   layoutTrigger: number;
   caseId?: string;
+  isMaximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
 const nodeTypes = {
   customNode: CustomNode,
 };
 
-export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
+export function GraphCanvas({ 
+  layoutTrigger, 
+  caseId,
+  isMaximized = false,
+  onToggleMaximize,
+}: GraphCanvasProps) {
   const { fitView } = useReactFlow();
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -71,6 +80,14 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
     }
   }, [storeEdges, edges.length, setEdges]);
 
+  // Reflow and fitView when toggling maximize without reloading data
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fitView({ padding: 0.15, duration: 350 });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [isMaximized, fitView]);
+
 
   // Compute hovered node neighbors
   const hoveredNeighbors = useMemo(() => {
@@ -109,8 +126,13 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
     // 3. Filter nodes by user-selected entity types and query match
     let filteredNodes = rawNodesInput.filter((n) => {
       const nType = (n.type || '').toLowerCase();
+      const isMatched = matchedIds.has(n.id);
+      // Allow query-matched nodes to be discovered even if their type is not currently checked
+      if (filters.searchQuery && filters.searchQuery.trim().length > 0 && isMatched) {
+        return true;
+      }
       if (!filters.nodeTypes.some((t) => t.toLowerCase() === nType || nType.startsWith(t))) return false;
-      return matchedIds.has(n.id);
+      return isMatched;
     });
 
     // 4. Sort nodes: when searching, sort matching labels first; then sort by connectivity degree
@@ -244,8 +266,8 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
             : isHighlighted 
             ? '#6366f1' 
             : isDimmed 
-            ? '#33415520' 
-            : '#47556960',
+            ? (resolvedTheme === 'dark' ? '#33415525' : '#cbd5e140')
+            : (resolvedTheme === 'dark' ? '#64748b60' : '#94a3b890'),
           strokeWidth: isPathEdge || isHighlighted ? 2.5 : 1,
         },
       };
@@ -261,7 +283,7 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
         fitView({ padding: 0.2, duration: 400 });
       }, 50);
     }
-  }, [filters, layoutMode, selectedNodeId, highlightedNeighbors, shortestPath, hoveredNodeId, hoveredNeighbors, isClustered, computeSemanticScores, getClusteredLayout, setNodes, setEdges, fitView]);
+  }, [filters, layoutMode, selectedNodeId, highlightedNeighbors, shortestPath, hoveredNodeId, hoveredNeighbors, isClustered, resolvedTheme, computeSemanticScores, getClusteredLayout, setNodes, setEdges, fitView]);
 
   // Re-calculate layouts
   useEffect(() => {
@@ -335,6 +357,29 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
               {source === 'live' ? '● Live DB Data' : '▲ Demo Fallback'}
             </span>
           </div>
+
+          {onToggleMaximize && (
+            <button
+              type="button"
+              id="canvas-maximize-btn"
+              onClick={onToggleMaximize}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md border shadow-lg flex items-center gap-1.5 transition-all duration-200 cursor-pointer bg-slate-900/90 border-slate-750/70 text-slate-300 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              title={isMaximized ? "Exit fullscreen" : "Maximize graph"}
+              aria-label={isMaximized ? "Exit graph fullscreen" : "Maximize graph"}
+            >
+              {isMaximized ? (
+                <>
+                  <Minimize2 className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="hidden md:inline">Minimize</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="hidden md:inline">Maximize</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -355,23 +400,34 @@ export function GraphCanvas({ layoutTrigger, caseId }: GraphCanvasProps) {
         maxZoom={2.5}
         attributionPosition="bottom-left"
         proOptions={{ hideAttribution: true }}
-        style={{ backgroundColor: '#0a0e1a' }}
+        colorMode={resolvedTheme}
+        style={{
+          backgroundColor: resolvedTheme === 'dark' ? '#020617' : '#f8fafc',
+          width: '100%',
+          height: '100%',
+        }}
       >
-        <Background color="#1e293b40" gap={24} size={1} />
+        <Background
+          color={resolvedTheme === 'dark' ? 'rgba(148, 163, 184, 0.25)' : 'rgba(148, 163, 184, 0.5)'}
+          gap={24}
+          size={1}
+        />
         <Controls
           style={{
             borderRadius: '12px',
             overflow: 'hidden',
-            border: '1px solid rgba(148, 163, 184, 0.1)',
+            border: `1px solid ${resolvedTheme === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(203, 213, 225, 0.9)'}`,
+            backgroundColor: resolvedTheme === 'dark' ? '#0f172a' : '#ffffff',
+            color: resolvedTheme === 'dark' ? '#f1f5f9' : '#0f172a',
           }}
         />
         <MiniMap
           style={{
-            backgroundColor: '#0f172a',
+            backgroundColor: resolvedTheme === 'dark' ? '#0f172a' : '#ffffff',
             borderRadius: '8px',
-            border: '1px solid rgba(148, 163, 184, 0.1)',
+            border: `1px solid ${resolvedTheme === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(203, 213, 225, 0.9)'}`,
           }}
-          maskColor="rgba(0, 0, 0, 0.6)"
+          maskColor={resolvedTheme === 'dark' ? 'rgba(2, 6, 23, 0.7)' : 'rgba(240, 240, 240, 0.7)'}
           nodeColor={(n: any) => GRAPH_NODE_COLORS[n.data?.type] || '#6366f1'}
         />
       </ReactFlow>

@@ -99,6 +99,7 @@ export function OverviewTab() {
   const isQuotaPaused = summary?.last_generation_status === 'quota_paused' || summary?.status === 'quota_paused';
   const isStale = Boolean(summary?.stale && summary?.status === 'complete');
   const isEmptyState = !isLoadingSummary && !summary && !isGenerating;
+  const isProcessingEvidence = processingCount > 0 || (isLoadingDocs && !hasDocData);
 
   return (
     <div className="space-y-6" id="case-overview-tab">
@@ -327,6 +328,19 @@ export function OverviewTab() {
             <p className="text-xs text-slate-400 font-medium">Checking case intelligence summary...</p>
           </div>
         ) : isEmptyState ? (
+          isProcessingEvidence ? (
+            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/30 p-10 text-center space-y-4" id="overview-empty-state-preparing">
+              <div className="relative mx-auto w-12 h-12 flex items-center justify-center">
+                <Loader2 className="h-10 w-10 text-indigo-500 animate-spin" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1.5">
+                <h3 className="text-base font-bold text-slate-100">Preparing your case</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Your evidence is being analyzed. You can continue working once case intelligence is ready.
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/30 p-10 text-center space-y-4" id="overview-empty-state">
             <div className="h-12 w-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
               <Brain className="h-6 w-6" />
@@ -349,6 +363,7 @@ export function OverviewTab() {
               </button>
             </div>
           </div>
+          )
         ) : isGenerating && !hasSummary ? (
           <div className="rounded-2xl border border-indigo-500/30 bg-slate-900/40 p-12 text-center space-y-4" id="overview-generating-state">
             <div className="relative mx-auto w-12 h-12 flex items-center justify-center">

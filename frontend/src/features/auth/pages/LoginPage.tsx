@@ -354,14 +354,20 @@ export function LoginPage() {
           <div className="mt-5 pt-4 border-t border-slate-800/50">
             <button
               type="button"
-              onClick={() => {
+              disabled={isLoading}
+              onClick={async () => {
                 setEmail('user@example.com');
                 setPassword('Password123!');
+                try {
+                  await login('user@example.com', 'Password123!');
+                } catch (err: any) {
+                  setError(err?.message || 'Authentication failed');
+                }
               }}
-              className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-[11px] font-medium text-indigo-300 transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 px-3 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-xs font-semibold text-indigo-300 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow-indigo-500/10"
             >
-              <Scale className="h-3.5 w-3.5 text-indigo-400" />
-              <span>Auto-fill Demo Practitioner: <code>user@example.com</code></span>
+              <Scale className="h-4 w-4 text-indigo-400" />
+              <span>1-Click Sign In: Lead Counsel (<code>user@example.com</code>)</span>
             </button>
           </div>
         )}

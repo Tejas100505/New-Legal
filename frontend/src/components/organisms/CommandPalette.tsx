@@ -156,7 +156,7 @@ export function CommandPalette() {
               'fixed z-[70] top-[20%] left-1/2 -translate-x-1/2',
               'w-[90vw] max-w-[600px]',
               'rounded-2xl border border-slate-800/80',
-              'bg-slate-900/98 dark:bg-slate-900/98 backdrop-blur-2xl',
+              'bg-slate-900/98 backdrop-blur-2xl',
               'shadow-2xl shadow-black/40 overflow-hidden'
             )}
             role="dialog"

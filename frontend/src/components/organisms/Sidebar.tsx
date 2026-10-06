@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 import { useSidebarStore } from '@/stores/sidebarStore';
+import { useAuthStore } from '@/features/auth/store';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { Logo } from '@/components/atoms/Logo';
 import { Badge } from '@/components/atoms/Badge';
@@ -101,13 +102,17 @@ function NavItemLink({ item, collapsed }: { item: SidebarNavItem; collapsed: boo
 export function Sidebar() {
   const { isCollapsed, isMobileOpen, toggle, setMobileOpen } = useSidebarStore();
   const isMobile = useIsMobile();
+  const { isAuthenticated, token } = useAuthStore();
   const [counts, setCounts] = useState<{ cases?: number }>({});
 
   useEffect(() => {
+    if (!isAuthenticated || !token) return;
     let isMounted = true;
     async function fetchCounts() {
       try {
-        const casesRes = await api.get('/cases?page_size=1');
+        const casesRes = await api.get('/cases?page_size=1', {
+          suppressErrorToast: true,
+        } as any);
         if (!isMounted) return;
         if (casesRes.data?.total !== undefined) {
           setCounts({ cases: casesRes.data.total });
@@ -123,7 +128,7 @@ export function Sidebar() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [isAuthenticated, token]);
 
   const getDynamicBadge = (item: SidebarNavItem): string | undefined => {
     if (item.label === 'Cases') {
@@ -148,8 +153,8 @@ export function Sidebar() {
     <aside
       className={cn(
         'flex flex-col h-full',
-        'bg-slate-950/90 dark:bg-slate-950/90 backdrop-blur-2xl',
-        'border-r border-slate-800/50 dark:border-slate-800/50',
+        'bg-slate-950/90 backdrop-blur-2xl',
+        'border-r border-slate-800/50',
         'transition-all duration-300 ease-out'
       )}
       onClick={handleNavClick}

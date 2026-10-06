@@ -49,7 +49,7 @@ export function Toggle({ checked, onChange, label, description, disabled, size =
       </button>
       {(label || description) && (
         <div>
-          {label && <span className="text-sm font-medium text-slate-200 dark:text-slate-200">{label}</span>}
+          {label && <span className="text-sm font-medium text-slate-200">{label}</span>}
           {description && <p className="text-xs text-slate-500">{description}</p>}
         </div>
       )}

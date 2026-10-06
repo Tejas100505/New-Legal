@@ -132,6 +132,13 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'auth-storage',
+      onRehydrateStorage: () => (state) => {
+        if (state?.token && state.isAuthenticated) {
+          localStorage.setItem('auth_token', state.token);
+        } else {
+          localStorage.removeItem('auth_token');
+        }
+      },
       partialize: (state) => ({
         user: state.user,
         token: state.token,

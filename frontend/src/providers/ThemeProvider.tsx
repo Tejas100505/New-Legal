@@ -30,6 +30,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       : theme;
     document.documentElement.classList.remove('dark', 'light');
     document.documentElement.classList.add(resolved);
+    document.documentElement.setAttribute('data-theme', resolved);
+    document.documentElement.style.colorScheme = resolved;
   }, [theme]);
 
   return <>{children}</>;

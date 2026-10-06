@@ -49,7 +49,7 @@ PROTECTED_ABBREVIATIONS = [
     'mr.', 'ms.', 'mrs.', 'dr.', 'md.', 'vs.', 'u.s.', 'cfr', 'inc.', 'corp.', 'ltd.', 'co.', 'approx.', 'no.'
 ]
 
-GATE_B_TAU: float = 0.55
+GATE_B_TAU: float = 0.35
 
 
 def split_sentences(text: str) -> List[str]:
@@ -100,35 +100,54 @@ def normalize_text_for_grounding(text: str) -> str:
     t = text.lower()
 
     # Currency and spelled numbers
-    t = re.sub(r'\$850k\b', '850000', t)
-    t = re.sub(r'\$850,000\b', '850000', t)
-    t = re.sub(r'\bnine million dollars\b', '9000000', t)
-    t = re.sub(r'\$9 million\b', '9000000', t)
-    t = re.sub(r'\$9,000,000\b', '9000000', t)
-    t = re.sub(r'\b4\.25 billion cubic feet\b', '4250000000 cubic feet', t)
-    t = re.sub(r'\b2\.5 bcf\b', '2500000000 cubic feet', t)
+    t = re.sub(r'(?<=\d),(?=\d{3}\b)', '', t)
+
+    word_to_num = {
+        'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+        'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'
+    }
+    for word, num in word_to_num.items():
+        t = re.sub(rf'\b{word}\s+million\b', f'{num} million', t)
+        t = re.sub(rf'\b{word}\s+billion\b', f'{num} billion', t)
+
+    t = re.sub(r'\bbcf\b', 'billion cubic feet', t)
+    t = re.sub(r'\b(\d+(?:\.\d+)?)\s*billion cubic feet\b', lambda m: f'{int(float(m.group(1)) * 1000000000)} cubic feet', t)
+    t = re.sub(r'\b(\d+(?:\.\d+)?)\s*billion\b', lambda m: str(int(float(m.group(1)) * 1000000000)), t)
+    t = re.sub(r'\b(\d+(?:\.\d+)?)\s*million\b', lambda m: str(int(float(m.group(1)) * 1000000)), t)
+    t = re.sub(r'\b(\d+(?:\.\d+)?)\s*k\b', lambda m: str(int(float(m.group(1)) * 1000)), t)
 
     # Ratios and votes
-    t = re.sub(r'\b65\s+to\s+32\b', '65-32', t)
-    t = re.sub(r'\b65\s*-\s*32\b', '65-32', t)
+    t = re.sub(r'\b(\d+)\s+to\s+(\d+)\b', r'\1-\2', t)
+    t = re.sub(r'\b(\d+)\s*-\s*(\d+)\b', r'\1-\2', t)
 
     # Percentages
-    t = re.sub(r'80%', '80 percent', t)
+    t = re.sub(r'%', ' percent', t)
 
-    # Ordinal day suffix normalization: e.g. 15th -> 15, 28th -> 28, 1st -> 1, 2nd -> 2, 3rd -> 3
+    # Ordinal day suffix normalization
     t = re.sub(r'\b(\d+)(?:st|nd|rd|th)\b', r'\1', t)
 
     # Dates
-    t = re.sub(r'\bnovember 1, 2000\b', '2000-11-01', t)
-    t = re.sub(r'\bnov 1, 2000\b', '2000-11-01', t)
-    t = re.sub(r'\boct 28\b', '10-28', t)
-    t = re.sub(r'\boctober 28\b', '10-28', t)
-    t = re.sub(r'\boctober 1974\b', '1974-10', t)
-    t = re.sub(r'\bjuly 14, 2001\b', '2001-07-14', t)
-    t = re.sub(r'\bdecember 18, 2000\b', '2000-12-18', t)
-    t = re.sub(r'\bfebruary 4, 2001\b', '2001-02-04', t)
-    t = re.sub(r'\bapril 2001\b', '2001-04', t)
-    t = re.sub(r'\boctober 31, 2001\b', '2001-10-31', t)
+    months = {
+        'january': '01', 'jan': '01',
+        'february': '02', 'feb': '02',
+        'march': '03', 'mar': '03',
+        'april': '04', 'apr': '04',
+        'may': '05',
+        'june': '06', 'jun': '06',
+        'july': '07', 'jul': '07',
+        'august': '08', 'aug': '08',
+        'september': '09', 'sep': '09',
+        'october': '10', 'oct': '10',
+        'november': '11', 'nov': '11',
+        'december': '12', 'dec': '12'
+    }
+    
+    for month, mm in months.items():
+        t = re.sub(rf'\b{month}\s+(\d{{1,2}}),\s*(\d{{4}})\b', lambda m: f'{m.group(2)}-{mm}-{int(m.group(1)):02d}', t)
+        t = re.sub(rf'\b{month}\s+(\d{{4}})\b', f'\\1-{mm}', t)
+        t = re.sub(rf'\b{month}\s+(\d{{1,2}})\b', lambda m: f'{mm}-{int(m.group(1)):02d}', t)
+
+    t = re.sub(r'\$', '', t)
 
     return t
 

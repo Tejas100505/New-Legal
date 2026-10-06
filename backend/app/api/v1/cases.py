@@ -44,14 +44,18 @@ async def create_case(
 async def list_cases(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    include_fixtures: bool = Query(False, description="Whether to include system/integration test fixtures"),
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ) -> CaseListResponse:
-    """List cases with pagination, scoped to owner unless admin."""
+    """List cases with pagination, scoped to owner unless admin, excluding system fixtures by default."""
     service = CaseService(db)
     created_by_filter = None if current_user.role == UserRole.ADMIN else current_user.sub
     cases, total = await service.list_cases(
-        created_by=created_by_filter, page=page, page_size=page_size
+        created_by=created_by_filter,
+        include_fixtures=include_fixtures,
+        page=page,
+        page_size=page_size,
     )
     return CaseListResponse(
         cases=cases, total=total, page=page, page_size=page_size

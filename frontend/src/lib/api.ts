@@ -14,10 +14,29 @@ const api = axios.create({
   },
 });
 
+export function getAuthToken(): string | null {
+  const direct = localStorage.getItem('auth_token');
+  if (direct) return direct;
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const token = parsed?.state?.token;
+      if (token) {
+        localStorage.setItem('auth_token', token);
+        return token;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+let last401Time = 0;
+
 // ── Request interceptor: attach auth token if available ─────────────────────
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -37,6 +56,25 @@ api.interceptors.response.use(
       if (status === 401) {
         message = 'Session expired. Please log in again.';
         localStorage.removeItem('auth_token');
+        try {
+          const raw = localStorage.getItem('auth-storage');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.state) {
+              parsed.state.token = null;
+              parsed.state.user = null;
+              parsed.state.isAuthenticated = false;
+              localStorage.setItem('auth-storage', JSON.stringify(parsed));
+            }
+          }
+        } catch {}
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth:unauthorized'));
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        }
       } else if (status === 403) {
         message = 'You do not have permission to perform this action.';
       } else if (status === 404) {
@@ -47,7 +85,14 @@ api.interceptors.response.use(
         message = 'Server error. Please try again later.';
       }
 
+      const now = Date.now();
+      const is401Spam = status === 401 && now - last401Time < 3000;
+      if (status === 401) {
+        last401Time = now;
+      }
+
       const isSuppressed = Boolean(
+        is401Spam ||
         error.config?.suppressErrorToast ||
         (status === 404 && error.config?.suppress404Toast)
       );

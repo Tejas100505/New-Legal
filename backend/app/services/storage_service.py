@@ -303,7 +303,14 @@ class StorageService:
         ext = Path(filename).suffix.lower()
         unique_name = f"{uuid.uuid4().hex}{ext}"
         key = f"{prefix}/{unique_name}" if prefix else unique_name
-        return await self.backend.upload(key, content, content_type=content_type)
+        try:
+            return await self.backend.upload(key, content, content_type=content_type)
+        except StorageException as e:
+            if not isinstance(self.backend, LocalStorageBackend):
+                logger.warning("Storage backend failed ({}), falling back to LocalStorageBackend", e)
+                fallback = LocalStorageBackend(self.settings)
+                return await fallback.upload(key, content, content_type=content_type)
+            raise
 
     def _resolve_legacy_local_path(self, storage_path: str) -> Optional[Path]:
         """Resolves whether a storage_path points to an existing local file."""
@@ -333,7 +340,13 @@ class StorageService:
             return local_path.read_bytes()
 
         # 2. Fetch from the configured storage backend
-        return await self.backend.download(storage_path)
+        try:
+            return await self.backend.download(storage_path)
+        except StorageException as e:
+            if not isinstance(self.backend, LocalStorageBackend):
+                logger.warning("Storage backend download failed ({}), trying LocalStorageBackend", e)
+                return await LocalStorageBackend(self.settings).download(storage_path)
+            raise
 
     async def delete_document_file(self, storage_path: str) -> bool:
         """Deletes a document from storage backend and cleans up any legacy local file."""

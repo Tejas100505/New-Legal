@@ -84,6 +84,48 @@ class PlainTextEngine(BaseOCREngine):
                 raise e
             raise OCREngineException(f"PlainText direct read failed: {e}")
 
+class DocxEngine(BaseOCREngine):
+    name = "python-docx"
+
+    def process(self, file_path: str, page_number: int) -> OCREngineResult:
+        logger.info(f"[DocxEngine] Attempting text extraction for {file_path}")
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext != ".docx":
+            raise OCREngineException(f"File is not a docx document: {ext}")
+
+        try:
+            from docx import Document
+            doc = Document(file_path)
+            full_text = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    full_text.append(para.text)
+            
+            # Extract text from tables if any
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_text:
+                        full_text.append(" | ".join(row_text))
+
+            text = "\n\n".join(full_text)
+            if not text or not text.strip():
+                raise OCREngineException(f"Docx extraction returned empty text for '{os.path.basename(file_path)}'")
+
+            logger.info(f"[DocxEngine] Successfully extracted {len(text)} characters from {os.path.basename(file_path)}")
+            return OCREngineResult(
+                text=text,
+                confidence=1.0,
+                page_number=page_number,
+                layout={"type": "docx"},
+                bounding_boxes=[],
+                reading_order=[]
+            )
+        except Exception as e:
+            if isinstance(e, OCREngineException):
+                raise e
+            raise OCREngineException(f"Docx extraction failed: {str(e)}")
+
 
 class PyPDFEngine(BaseOCREngine):
     name = "pypdf"
@@ -329,6 +371,7 @@ class OCRAgent(BaseAgent[OCRInput, OCROutput]):
         )
         self.engines = engines or [
             PlainTextEngine(),
+            DocxEngine(),
             PyPDFEngine(),
             TesseractEngine(),
             LLMOCREngine(),

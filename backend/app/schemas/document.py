@@ -67,12 +67,13 @@ class DocumentListResponse(BaseModel):
 
 
 class DocumentUploadResponse(BaseModel):
-    """Response after successful file upload."""
-    id: uuid.UUID
+    """Response after file upload (or individual file error during batch upload)."""
+    id: uuid.UUID | None = None
     filename: str
     status: DocumentStatus
     uploaded_by: uuid.UUID | None = None
     message: str = "Document uploaded successfully"
+    error: str | None = None
 
 
 class StatusHistoryResponse(BaseModel):

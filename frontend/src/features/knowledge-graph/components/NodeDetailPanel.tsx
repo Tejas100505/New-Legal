@@ -2,8 +2,13 @@ import { useGraphStore } from '../store/graphStore';
 import { GRAPH_NODE_COLORS } from '@/lib/constants';
 import { X, Info, FileText, HelpCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
-export function NodeDetailPanel() {
+interface NodeDetailPanelProps {
+  isOverlay?: boolean;
+}
+
+export function NodeDetailPanel({ isOverlay = false }: NodeDetailPanelProps = {}) {
   const selectedNodeId = useGraphStore((s) => s.selectedNodeId);
   const selectNode = useGraphStore((s) => s.selectNode);
   const expandNode = useGraphStore((s) => s.expandNode);
@@ -12,6 +17,7 @@ export function NodeDetailPanel() {
   const navigate = useNavigate();
 
   if (!selectedNodeId) {
+    if (isOverlay) return null;
     return (
       <div className="w-80 bg-slate-900/50 backdrop-blur-xl border border-slate-800/80 rounded-xl p-6 flex flex-col items-center justify-center text-center gap-2 h-full max-h-[calc(100vh-14rem)]">
         <HelpCircle className="h-8 w-8 text-slate-700" />
@@ -44,7 +50,12 @@ export function NodeDetailPanel() {
   });
 
   return (
-    <div className="w-80 bg-slate-900/50 backdrop-blur-xl border border-slate-800/80 rounded-xl p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-14rem)]">
+    <div className={cn(
+      "w-80 backdrop-blur-xl border border-slate-800/80 rounded-xl p-4 flex flex-col gap-4 overflow-y-auto transition-all",
+      isOverlay 
+        ? "bg-slate-900/95 max-h-[calc(100vh-6rem)] shadow-2xl z-30" 
+        : "bg-slate-900/50 max-h-[calc(100vh-14rem)]"
+    )}>
       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex items-center gap-2">
           <Info className="h-4 w-4 text-indigo-400" />

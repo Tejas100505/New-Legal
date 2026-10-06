@@ -13,7 +13,7 @@ export function AuthLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 dark:bg-slate-950 flex items-center justify-center relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center relative overflow-hidden">
       {/* Animated gradient background */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-[40%] -left-[20%] w-[80%] h-[80%] rounded-full bg-indigo-500/5 blur-[120px] animate-pulse" />

@@ -46,8 +46,8 @@ export function MetricCard({ metric, index = 0 }: MetricCardProps) {
       transition={{ delay: index * 0.05, duration: 0.4 }}
       className={cn(
         'rounded-xl p-5',
-        'bg-slate-900/50 dark:bg-slate-900/50 backdrop-blur-xl',
-        'border border-slate-800/50 dark:border-slate-800/50',
+        'bg-slate-900/50 backdrop-blur-xl',
+        'border border-slate-800/50',
         'hover:border-indigo-500/20 hover:shadow-xl',
         'transition-all duration-300 hover:-translate-y-0.5',
         colors.glow
@@ -62,7 +62,7 @@ export function MetricCard({ metric, index = 0 }: MetricCardProps) {
         </div>
       </div>
       <div className="mb-1">
-        <span className="text-2xl font-bold text-slate-100 dark:text-slate-100 tracking-tight">
+        <span className="text-2xl font-bold text-slate-100 tracking-tight">
           {metric.value}
         </span>
       </div>

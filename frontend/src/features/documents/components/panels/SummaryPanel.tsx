@@ -94,7 +94,7 @@ export function SummaryPanel({ doc }: SummaryPanelProps) {
                 active
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : hasData
-                  ? 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  ? 'text-slate-300 hover:text-slate-100 hover:bg-slate-800'
                   : 'text-slate-600 opacity-60'
               }`}
               title={st.desc}

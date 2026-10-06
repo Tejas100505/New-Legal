@@ -4,9 +4,10 @@ import { DocumentRenderer } from './DocumentRenderer';
 import { SummaryPanel } from './panels/SummaryPanel';
 import { RiskPanel } from './panels/RiskPanel';
 import { EntityPanel } from './panels/EntityPanel';
+import { DocumentGraphPanel } from './panels/DocumentGraphPanel';
 import { ReasoningPanel } from './panels/ReasoningPanel';
 import { DocumentSearch } from './DocumentSearch';
-import { FileText, ShieldAlert, GitCommit, Search, Users } from 'lucide-react';
+import { FileText, ShieldAlert, GitCommit, Search, Users, Share2 } from 'lucide-react';
 import type { ViewerTab } from '@/types';
 
 interface DocumentViewerProps {
@@ -26,6 +27,8 @@ export function DocumentViewer({ currentPage, onPageChange, doc, onDocUpdate }: 
         return <RiskPanel doc={doc} onDocUpdate={onDocUpdate} />;
       case 'entities':
         return <EntityPanel doc={doc} />;
+      case 'relationships':
+        return <DocumentGraphPanel doc={doc} />;
       case 'reasoning':
         return <ReasoningPanel doc={doc} />;
       case 'search':
@@ -40,6 +43,7 @@ export function DocumentViewer({ currentPage, onPageChange, doc, onDocUpdate }: 
     { id: 'summary', label: 'Summary', icon: FileText },
     { id: 'risk', label: 'Privilege & Risk', icon: ShieldAlert },
     { id: 'entities', label: 'Entities', icon: Users },
+    { id: 'relationships', label: 'Relationships', icon: Share2 },
     { id: 'reasoning', label: 'Reasoning', icon: GitCommit },
     { id: 'search', label: 'Search', icon: Search },
   ];

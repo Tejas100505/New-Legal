@@ -2,7 +2,7 @@ import { useCaseWorkspace } from '../CaseWorkspaceContext';
 import { ReportsPage } from '@/features/reports/pages/ReportsPage';
 
 export function ReportTab() {
-  const { caseId } = useCaseWorkspace();
+  const { caseId, caseData } = useCaseWorkspace();
 
-  return <ReportsPage caseId={caseId} />;
+  return <ReportsPage caseId={caseId} caseName={caseData?.name} />;
 }

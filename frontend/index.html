@@ -2,6 +2,35 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('casegraph-theme') || localStorage.getItem('theme-storage');
+          var theme = 'dark';
+          if (stored) {
+            try {
+              var parsed = JSON.parse(stored);
+              if (parsed && parsed.state && parsed.state.theme) {
+                theme = parsed.state.theme;
+              } else if (typeof parsed === 'string') {
+                theme = parsed;
+              }
+            } catch (e) {
+              theme = stored;
+            }
+          }
+          if (theme === 'system') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          var resolved = theme === 'light' ? 'light' : 'dark';
+          var root = document.documentElement;
+          root.classList.remove('dark', 'light');
+          root.classList.add(resolved);
+          root.setAttribute('data-theme', resolved);
+          root.style.colorScheme = resolved;
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Agentic AI E-Discovery & Legal Review Platform — Enterprise-grade automated legal document review powered by specialized AI agents." />

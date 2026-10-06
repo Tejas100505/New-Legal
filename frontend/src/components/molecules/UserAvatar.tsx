@@ -68,7 +68,7 @@ export function UserAvatar({ name, avatar, size = 'md', showStatus, status = 'on
       {showStatus && (
         <span
           className={cn(
-            'absolute rounded-full ring-2 ring-slate-950 dark:ring-slate-950',
+            'absolute rounded-full ring-2 ring-slate-950',
             statusSizeStyles[size],
             statusColorStyles[status]
           )}

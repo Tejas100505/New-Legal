@@ -15,7 +15,7 @@ export function Skeleton({ className, variant = 'rectangular', width, height }: 
   return (
     <div
       className={cn(
-        'animate-pulse bg-slate-800/60 dark:bg-slate-800/60 light:bg-slate-200/60',
+        'animate-pulse bg-slate-800/60',
         variant === 'circular' && 'rounded-full',
         variant === 'text' && 'rounded-md h-4',
         variant === 'rectangular' && 'rounded-lg',

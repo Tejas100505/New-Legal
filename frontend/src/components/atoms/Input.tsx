@@ -21,7 +21,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-slate-300 dark:text-slate-300"
+            className="block text-sm font-medium text-slate-300"
           >
             {label}
           </label>
@@ -36,14 +36,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'w-full rounded-lg border bg-slate-900/80 dark:bg-slate-900/80 text-slate-100 dark:text-slate-100 text-sm',
-              'placeholder:text-slate-600 dark:placeholder:text-slate-600',
+              'w-full rounded-lg border bg-slate-900/80 text-slate-100 text-sm',
+              'placeholder:text-slate-500',
               'focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50',
               'transition-all duration-200',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               error
                 ? 'border-red-500/50 focus:ring-red-500/50'
-                : 'border-slate-700 dark:border-slate-700',
+                : 'border-slate-700',
               leftIcon ? 'pl-10 pr-4 py-2.5' : 'px-4 py-2.5',
               className
             )}

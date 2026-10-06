@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import limiter
@@ -44,6 +45,7 @@ from app.services.status_history_service import (
     get_pipeline_execution_status,
 )
 from app.services.document_service import DocumentService
+from app.models.document import DocumentStatus
 from app.auth.dependencies import get_current_user, require_role, TokenPayload, UserRole
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -166,9 +168,32 @@ async def upload_multiple_documents(
             res = await service.upload_document(file, case_id=case_id, uploaded_by=user_uuid)
             await db.commit()
             background_tasks.add_task(run_document_pipeline, str(res.id))
-            results.append(res)
+            results.append(
+                DocumentUploadResponse(
+                    id=res.id,
+                    filename=res.filename,
+                    status=res.status,
+                    uploaded_by=res.uploaded_by,
+                    message="Document uploaded successfully",
+                )
+            )
         except Exception as e:
-            continue
+            logger.warning(
+                "Batch upload failed for file",
+                filename=getattr(file, "filename", "unknown"),
+                error=str(e),
+            )
+            await db.rollback()
+            results.append(
+                DocumentUploadResponse(
+                    id=None,
+                    filename=getattr(file, "filename", "unknown"),
+                    status=DocumentStatus.ERROR,
+                    uploaded_by=user_uuid,
+                    message=f"Upload failed: {str(e)}",
+                    error=str(e),
+                )
+            )
     return results
 
 

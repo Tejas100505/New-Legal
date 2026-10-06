@@ -34,7 +34,7 @@ export function Logo({ collapsed = false, size = 'md', className }: LogoProps) {
       </div>
       {!collapsed && (
         <div className="overflow-hidden">
-          <h1 className={cn('font-bold text-slate-100 dark:text-slate-100 tracking-tight truncate', cfg.title)}>
+          <h1 className={cn('font-bold text-slate-100 tracking-tight truncate', cfg.title)}>
             E-Discovery AI
           </h1>
           <p className={cn('font-medium text-indigo-400/80 tracking-wider uppercase', cfg.subtitle)}>

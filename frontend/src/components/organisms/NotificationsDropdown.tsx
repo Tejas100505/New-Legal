@@ -23,7 +23,7 @@ export function NotificationsDropdown({ show }: { show: boolean }) {
           className={cn(
             'absolute right-0 top-12 w-[420px] max-h-[500px] overflow-y-auto custom-scrollbar',
             'rounded-xl border border-slate-800/80',
-            'bg-slate-900/95 dark:bg-slate-900/95 backdrop-blur-2xl',
+            'bg-slate-900/95 backdrop-blur-2xl',
             'shadow-2xl shadow-black/30 z-50 flex flex-col'
           )}
         >
